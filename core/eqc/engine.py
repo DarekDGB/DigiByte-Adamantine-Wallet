@@ -103,11 +103,15 @@ class _CompatStepUp:
 
 def _attach_step_up(verdict: Verdict, requirements: List[Any]) -> Verdict:
     """
-    IMPORTANT: In this repo, Verdict has a step_up *factory function*.
-    Tests expect an instance attribute verdict.step_up.requirements.
-    So we shadow the function by setting an instance attribute.
+    IMPORTANT: Verdict is a frozen dataclass in this repo.
+    Tests expect: decision.verdict.step_up.requirements
+    So we must set the dataclass field using object.__setattr__.
     """
-    setattr(verdict, "step_up", _CompatStepUp(requirements=requirements))
+    step = _CompatStepUp(requirements=requirements)
+    try:
+        object.__setattr__(verdict, "step_up", step)
+    except Exception:
+        setattr(verdict, "step_up", step)
     return verdict
 
 
