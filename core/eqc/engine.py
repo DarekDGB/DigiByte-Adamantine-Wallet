@@ -16,53 +16,72 @@ from typing import List, Optional, Sequence, Type
 
 from core.eqc.context import EQCContext
 from core.eqc.verdicts import Verdict, VerdictType
-from core.eqc.classifiers.device_classifier import DeviceClassifier
-from core.eqc.classifiers.tx_classifier import TxClassifier
 
 from core.eqc.policies.registry import PolicyPackRegistry
 
 
-def _resolve_policy_class() -> Type:
+def _resolve_class(module_path: str, preferred_names: List[str], required_method: str) -> Type:
     """
-    Resolve the policy class from core.eqc.policy without hardcoding the name.
+    Resolve a class from a module without hardcoding its name.
 
-    We select the first class that:
-    - is a class defined in the module
-    - has an `evaluate` method
+    Selects a class that:
+    - is defined in the target module
+    - has `required_method`
 
-    Preference order if multiple exist:
-    DefaultPolicy > Policy > *Policy* > first match
+    Preference order:
+    - any name in preferred_names (if present)
+    - any class containing the preferred token (e.g. "Policy", "Tx", "Device")
+    - deterministic first by name
     """
-    mod = importlib.import_module("core.eqc.policy")
+    mod = importlib.import_module(module_path)
 
     candidates = []
     for name, obj in vars(mod).items():
-        if inspect.isclass(obj) and obj.__module__ == mod.__name__ and hasattr(obj, "evaluate"):
+        if inspect.isclass(obj) and obj.__module__ == mod.__name__ and hasattr(obj, required_method):
             candidates.append((name, obj))
 
     if not candidates:
         raise ImportError(
-            "No policy class found in core.eqc.policy. "
-            "Expected a class with an evaluate(...) method."
+            f"No class with '{required_method}()' found in {module_path}."
         )
 
-    # Prefer common names if present
-    preferred = ["DefaultPolicy", "Policy"]
     by_name = {name: obj for name, obj in candidates}
-    for pname in preferred:
+    for pname in preferred_names:
         if pname in by_name:
             return by_name[pname]
 
-    # Otherwise prefer any class containing 'Policy' in its name
+    # If no exact preferred match, try token preference
+    tokens = []
+    for pname in preferred_names:
+        for tok in ["Policy", "Tx", "Device", "Classifier"]:
+            if tok in pname and tok not in tokens:
+                tokens.append(tok)
+
     for name, obj in sorted(candidates, key=lambda x: x[0]):
-        if "Policy" in name:
+        if any(tok in name for tok in tokens):
             return obj
 
-    # Fallback: deterministic first by name
     return sorted(candidates, key=lambda x: x[0])[0][1]
 
 
-_PolicyClass = _resolve_policy_class()
+# Resolve implementations dynamically (no hardcoded naming)
+_PolicyClass = _resolve_class(
+    module_path="core.eqc.policy",
+    preferred_names=["DefaultPolicy", "Policy", "EQCPolicy", "BasePolicy"],
+    required_method="evaluate",
+)
+
+_DeviceClassifierClass = _resolve_class(
+    module_path="core.eqc.classifiers.device_classifier",
+    preferred_names=["DeviceClassifier", "DefaultDeviceClassifier", "DeviceSignalsClassifier"],
+    required_method="classify",
+)
+
+_TxClassifierClass = _resolve_class(
+    module_path="core.eqc.classifiers.tx_classifier",
+    preferred_names=["TxClassifier", "TransactionClassifier", "TxSignalsClassifier", "DefaultTxClassifier"],
+    required_method="classify",
+)
 
 
 @dataclass
@@ -83,14 +102,14 @@ class EQCEngine:
     def __init__(
         self,
         policy: Optional[_PolicyClass] = None,
-        device_classifier: Optional[DeviceClassifier] = None,
-        tx_classifier: Optional[TxClassifier] = None,
+        device_classifier: Optional[_DeviceClassifierClass] = None,
+        tx_classifier: Optional[_TxClassifierClass] = None,
         policy_registry: Optional[PolicyPackRegistry] = None,
         enabled_policy_packs: Optional[Sequence[str]] = None,
     ):
         self._policy = policy or _PolicyClass()
-        self._device = device_classifier or DeviceClassifier()
-        self._tx = tx_classifier or TxClassifier()
+        self._device = device_classifier or _DeviceClassifierClass()
+        self._tx = tx_classifier or _TxClassifierClass()
 
         # Policy packs (opt-in)
         self._policy_registry = policy_registry or PolicyPackRegistry()
@@ -124,7 +143,6 @@ class EQCEngine:
 
         return EQCDecision(context_hash=ctx_hash, verdict=final_verdict, signals=signals)
 
-    # Convenience methods for enabling packs without rebuilding engine
     def enable_policy_pack(self, name: str) -> None:
         if name not in self._enabled_policy_packs:
             self._enabled_policy_packs.append(name)
