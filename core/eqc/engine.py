@@ -10,21 +10,59 @@ License: MIT (see root LICENSE)
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+import importlib
+import inspect
+from typing import List, Optional, Sequence, Type
 
 from core.eqc.context import EQCContext
 from core.eqc.verdicts import Verdict, VerdictType
-
-# ✅ Compatibility: your policy module may not use "DefaultPolicy"
-try:
-    from core.eqc.policy import DefaultPolicy as _PolicyClass
-except ImportError:  # pragma: no cover
-    from core.eqc.policy import Policy as _PolicyClass
-
 from core.eqc.classifiers.device_classifier import DeviceClassifier
 from core.eqc.classifiers.tx_classifier import TxClassifier
 
 from core.eqc.policies.registry import PolicyPackRegistry
+
+
+def _resolve_policy_class() -> Type:
+    """
+    Resolve the policy class from core.eqc.policy without hardcoding the name.
+
+    We select the first class that:
+    - is a class defined in the module
+    - has an `evaluate` method
+
+    Preference order if multiple exist:
+    DefaultPolicy > Policy > *Policy* > first match
+    """
+    mod = importlib.import_module("core.eqc.policy")
+
+    candidates = []
+    for name, obj in vars(mod).items():
+        if inspect.isclass(obj) and obj.__module__ == mod.__name__ and hasattr(obj, "evaluate"):
+            candidates.append((name, obj))
+
+    if not candidates:
+        raise ImportError(
+            "No policy class found in core.eqc.policy. "
+            "Expected a class with an evaluate(...) method."
+        )
+
+    # Prefer common names if present
+    preferred = ["DefaultPolicy", "Policy"]
+    by_name = {name: obj for name, obj in candidates}
+    for pname in preferred:
+        if pname in by_name:
+            return by_name[pname]
+
+    # Otherwise prefer any class containing 'Policy' in its name
+    for name, obj in sorted(candidates, key=lambda x: x[0]):
+        if "Policy" in name:
+            return obj
+
+    # Fallback: deterministic first by name
+    return sorted(candidates, key=lambda x: x[0])[0][1]
+
+
+_PolicyClass = _resolve_policy_class()
 
 
 @dataclass
