@@ -1,20 +1,7 @@
 """
 EQC Engine — Equilibrium Confirmation
 
-This is the single EQC entrypoint responsible for:
-1) running deterministic classifiers to extract signals
-2) applying EQC policy rules
-3) producing a deterministic Verdict
-
-EQC (Equilibrium Confirmation):
-- decides only
-- has no side effects
-- never generates keys
-- never signs
-- never executes actions
-
-WSQK may only be invoked by a runtime orchestrator
-after EQC returns VerdictType.ALLOW.
+Deterministic decision engine for Adamantine Wallet OS.
 
 Author: DarekDGB
 License: MIT (see root LICENSE)
@@ -23,53 +10,96 @@ License: MIT (see root LICENSE)
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Sequence
 
-from .context import EQCContext
-from .policy import EQCPolicy, default_policy
-from .verdicts import Verdict
-from .classifiers.context import classify_all, ClassificationBundle
-from .classifiers.base import Classifier
+from core.eqc.context import EQCContext
+from core.eqc.verdicts import Verdict, VerdictType
+from core.eqc.policy import DefaultPolicy
+from core.eqc.classifiers.device_classifier import DeviceClassifier
+from core.eqc.classifiers.tx_classifier import TxClassifier
+
+from core.eqc.policies.registry import PolicyPackRegistry
 
 
 @dataclass
 class EQCDecision:
-    """
-    Full EQC output: Verdict + classifier signals + context hash.
-    """
-    verdict: Verdict
     context_hash: str
-    signals: Dict[str, Any]
+    verdict: Verdict
+    signals: dict
 
 
 class EQCEngine:
     """
-    Default EQC engine (v1).
+    EQC decision brain.
+
+    Supports optional policy packs (opt-in):
+    - If no packs are enabled, behavior is unchanged.
     """
 
-    def __init__(self, policy: Optional[EQCPolicy] = None, classifiers: Optional[List[Classifier]] = None):
-        self._policy = policy or default_policy()
-        self._classifiers = classifiers  # if None, classify_all() uses defaults
+    def __init__(
+        self,
+        policy: Optional[DefaultPolicy] = None,
+        device_classifier: Optional[DeviceClassifier] = None,
+        tx_classifier: Optional[TxClassifier] = None,
+        policy_registry: Optional[PolicyPackRegistry] = None,
+        enabled_policy_packs: Optional[Sequence[str]] = None,
+    ):
+        self._policy = policy or DefaultPolicy()
+        self._device = device_classifier or DeviceClassifier()
+        self._tx = tx_classifier or TxClassifier()
 
-    def classify(self, ctx: EQCContext) -> ClassificationBundle:
-        return classify_all(ctx, classifiers=self._classifiers)
+        # Policy packs (opt-in)
+        self._policy_registry = policy_registry or PolicyPackRegistry()
+        self._enabled_policy_packs: List[str] = list(enabled_policy_packs or [])
 
-    def evaluate(self, ctx: EQCContext) -> Verdict:
-        """
-        Returns only the Verdict (minimal API).
-        """
-        return self._policy.evaluate(ctx)
+    def decide(self, context: EQCContext) -> EQCDecision:
+        # Classify
+        device_signals = self._device.classify(context)
+        tx_signals = self._tx.classify(context)
 
-    def decide(self, ctx: EQCContext) -> EQCDecision:
-        """
-        Returns Verdict + signals for audit/UI/telemetry.
-        """
-        bundle = self.classify(ctx)
-        signals = bundle.to_signals()
-        verdict = self._policy.evaluate(ctx)
+        # Base policy evaluation (existing behavior)
+        base_verdict = self._policy.evaluate(context, device_signals=device_signals, tx_signals=tx_signals)
 
-        return EQCDecision(
-            verdict=verdict,
-            context_hash=ctx.context_hash(),
-            signals=signals,
+        # Optional policy pack verdicts
+        pack_verdicts: List[Verdict] = self._policy_registry.evaluate(
+            context=context,
+            enabled=self._enabled_policy_packs,
         )
+
+        # Merge: strongest verdict wins (DENY > STEP_UP > ALLOW)
+        final_verdict = _merge_verdicts([base_verdict] + pack_verdicts)
+
+        # Context hash
+        ctx_hash = context.context_hash()
+
+        signals = {
+            "device": device_signals,
+            "tx": tx_signals,
+            "policy_packs": [v.type for v in pack_verdicts],
+        }
+
+        return EQCDecision(context_hash=ctx_hash, verdict=final_verdict, signals=signals)
+
+    # Convenience methods for enabling packs without rebuilding engine
+    def enable_policy_pack(self, name: str) -> None:
+        if name not in self._enabled_policy_packs:
+            self._enabled_policy_packs.append(name)
+
+    def disable_policy_pack(self, name: str) -> None:
+        self._enabled_policy_packs = [n for n in self._enabled_policy_packs if n != name]
+
+    @property
+    def policy_registry(self) -> PolicyPackRegistry:
+        return self._policy_registry
+
+
+def _merge_verdicts(verdicts: List[Verdict]) -> Verdict:
+    """
+    Merge verdicts deterministically.
+    Strongest wins: DENY > STEP_UP > ALLOW.
+    """
+    if any(v.type == VerdictType.DENY for v in verdicts):
+        return Verdict(type=VerdictType.DENY, reason="Denied by policy evaluation")
+    if any(v.type == VerdictType.STEP_UP for v in verdicts):
+        return Verdict(type=VerdictType.STEP_UP, reason="Step-up required by policy evaluation")
+    return Verdict(type=VerdictType.ALLOW, reason="Allowed by policy evaluation")
