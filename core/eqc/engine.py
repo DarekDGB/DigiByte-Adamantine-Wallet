@@ -14,7 +14,13 @@ from typing import List, Optional, Sequence
 
 from core.eqc.context import EQCContext
 from core.eqc.verdicts import Verdict, VerdictType
-from core.eqc.policy import DefaultPolicy
+
+# ✅ Compatibility: your policy module may not use "DefaultPolicy"
+try:
+    from core.eqc.policy import DefaultPolicy as _PolicyClass
+except ImportError:  # pragma: no cover
+    from core.eqc.policy import Policy as _PolicyClass
+
 from core.eqc.classifiers.device_classifier import DeviceClassifier
 from core.eqc.classifiers.tx_classifier import TxClassifier
 
@@ -38,13 +44,13 @@ class EQCEngine:
 
     def __init__(
         self,
-        policy: Optional[DefaultPolicy] = None,
+        policy: Optional[_PolicyClass] = None,
         device_classifier: Optional[DeviceClassifier] = None,
         tx_classifier: Optional[TxClassifier] = None,
         policy_registry: Optional[PolicyPackRegistry] = None,
         enabled_policy_packs: Optional[Sequence[str]] = None,
     ):
-        self._policy = policy or DefaultPolicy()
+        self._policy = policy or _PolicyClass()
         self._device = device_classifier or DeviceClassifier()
         self._tx = tx_classifier or TxClassifier()
 
