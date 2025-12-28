@@ -40,7 +40,15 @@ class HighValueStepUpPack(PolicyPack):
         super().__init__(name=name, rules=list(rules or []))
         self.threshold = int(threshold)
 
-    def evaluate(self, context: EQCContext) -> Verdict:
+    def evaluate(
+        self,
+        context: EQCContext,
+        *,
+        device_signals: Any = None,
+        tx_signals: Any = None,
+    ) -> Verdict:
+        # NOTE: device_signals / tx_signals are accepted for registry compatibility.
+        # This pack currently does not use them; it only tightens based on amount.
         a = context.action
 
         # Only apply to "send"
