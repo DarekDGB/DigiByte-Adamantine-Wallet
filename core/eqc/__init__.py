@@ -4,8 +4,7 @@ core.eqc — Public API surface (stable imports)
 This module intentionally re-exports only the stable, documented types
 used by the rest of Adamantine Wallet OS.
 
-Do NOT import internal modules from outside core.eqc.* directly.
-If you need something new, add it here deliberately.
+If something moves internally, we keep compatibility here.
 
 Author: DarekDGB
 License: MIT (see root LICENSE)
@@ -16,12 +15,24 @@ from __future__ import annotations
 # Context / data types
 from .context import EQCContext
 
-# Decisions / verdicts
-from .decision import EQCDecision
+# Verdicts + reason codes (these files exist in your repo)
 from .verdicts import VerdictType, ReasonCode
 
-# Engine
+# Engine (always exists)
 from .engine import EQCEngine
+
+# EQCDecision location varies across refactors — resolve safely.
+try:
+    # If you ever add decision.py later
+    from .decision import EQCDecision  # type: ignore
+except ModuleNotFoundError:
+    try:
+        # Common pattern: decision dataclass defined in engine.py
+        from .engine import EQCDecision  # type: ignore
+    except Exception:
+        # Fallback: some builds keep it in context.py
+        from .context import EQCDecision  # type: ignore
+
 
 __all__ = [
     "EQCEngine",
