@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import importlib
 import inspect
+import os
 from typing import Any, Dict, List, Optional, Sequence, Type
 
 from core.eqc.context import EQCContext
@@ -51,6 +52,19 @@ def _resolve_class(module_path: str, preferred_names: List[str], required_method
 
     # deterministic fallback by name
     return sorted(candidates, key=lambda x: x[0])[0][1]
+
+
+def _parse_policy_packs_env() -> List[str]:
+    """
+    Reads policy packs from env var:
+
+      EQC_POLICY_PACKS="module:PackA,module:PackB"
+
+    Returns list of refs (strings).
+    """
+    raw = os.getenv("EQC_POLICY_PACKS", "") or ""
+    parts = [p.strip() for p in raw.split(",")]
+    return [p for p in parts if p]
 
 
 # --- Reason + Verdict helpers (compatible with your Verdict model) -----------
@@ -201,7 +215,13 @@ class EQCEngine:
         self._tx = tx_classifier or _TxClassifierClass()
 
         self._policy_registry = policy_registry or PolicyPackRegistry()
-        self._enabled_policy_packs: List[str] = list(enabled_policy_packs or [])
+
+        # ✅ IMPORTANT FIX:
+        # If enabled_policy_packs is not provided, read from EQC_POLICY_PACKS env var.
+        if enabled_policy_packs is None:
+            self._enabled_policy_packs = _parse_policy_packs_env()
+        else:
+            self._enabled_policy_packs = list(enabled_policy_packs)
 
     def decide(self, context: EQCContext) -> EQCDecision:
         # --- Hard invariants (must be true even if policies change) -----
@@ -278,9 +298,13 @@ class EQCEngine:
 
         # --- Optional policy packs (opt-in) -----------------------------
 
+        # ✅ IMPORTANT FIX:
+        # pass device_signals and tx_signals so packs can decide properly.
         pack_verdicts: List[Verdict] = self._policy_registry.evaluate(
             context=context,
             enabled=self._enabled_policy_packs,
+            device_signals=device_signals,
+            tx_signals=tx_signals,
         )
 
         # --- Merge verdicts ---------------------------------------------
