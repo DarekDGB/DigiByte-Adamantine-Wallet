@@ -25,14 +25,23 @@ import json
 import time
 
 
+# -----------------------------
+# Device Context
+# -----------------------------
+
 @dataclass(frozen=True)
 class DeviceContext:
     device_id: str
-    device_type: str          # mobile, hardware, airgap, etc.
+    device_type: str          # mobile, hardware, airgap, browser, extension
     os: str                   # ios, android, linux
     trusted: bool = False
     first_seen_ts: Optional[int] = None
+    app_version: Optional[str] = None  # ✅ required for WSQK enforcement tests
 
+
+# -----------------------------
+# Network Context
+# -----------------------------
 
 @dataclass(frozen=True)
 class NetworkContext:
@@ -41,12 +50,20 @@ class NetworkContext:
     peer_count: Optional[int] = None
 
 
+# -----------------------------
+# User Context
+# -----------------------------
+
 @dataclass(frozen=True)
 class UserContext:
     user_id: Optional[str] = None
     biometric_available: bool = False
     pin_set: bool = False
 
+
+# -----------------------------
+# Action Context
+# -----------------------------
 
 @dataclass(frozen=True)
 class ActionContext:
@@ -55,6 +72,10 @@ class ActionContext:
     amount: Optional[int] = None
     recipient: Optional[str] = None
 
+
+# -----------------------------
+# EQC Context (Canonical)
+# -----------------------------
 
 @dataclass(frozen=True)
 class EQCContext:
