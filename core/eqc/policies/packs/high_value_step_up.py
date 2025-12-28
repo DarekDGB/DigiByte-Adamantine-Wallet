@@ -13,40 +13,56 @@ License: MIT (see root LICENSE)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from core.eqc.context import EQCContext
-from core.eqc.verdicts import Verdict, StepUpRequirement
 from core.eqc.policies.types import PolicyPack
+from core.eqc.verdicts import Verdict, VerdictType, StepUp, Reason, ReasonCode
 
 
-@dataclass(frozen=True)
 class HighValueStepUpPack(PolicyPack):
     """
     Require step-up for high-value sends.
+
+    NOTE:
+    We intentionally do NOT use @dataclass here to avoid dataclass field-order
+    conflicts with the PolicyPack base class (which may define non-default fields
+    like `rules`).
     """
 
-    name: str = "HIGH_VALUE_STEP_UP"
-    threshold: int = 10_000  # example: 10k units (DGB / DigiDollar minor units etc.)
+    name = "HIGH_VALUE_STEP_UP"
+    threshold = 10_000  # example: 10k units (DGB / DigiDollar minor units etc.)
 
     def evaluate(self, context: EQCContext) -> Verdict:
         a = context.action
 
         # Only apply to sends with a numeric amount
-        if a.action.lower() != "send":
+        if (a.action or "").lower() != "send":
             return Verdict.allow()
 
         if a.amount is None:
             return Verdict.allow()
 
-        if int(a.amount) < int(self.threshold):
+        try:
+            amount = int(a.amount)
+        except Exception:
             return Verdict.allow()
 
-        # Step-up requirements are intentionally minimal + generic for scaffolding.
-        return Verdict.step_up(
-            requirements=[
-                StepUpRequirement(name="confirm_user_intent"),
-            ],
+        if amount < int(self.threshold):
+            return Verdict.allow()
+
+        # Tighten ALLOW -> STEP_UP
+        step = StepUp(
+            requirements=["confirm_user_intent"],
             message=f"High-value send requires confirmation (>= {self.threshold}).",
-            details={"threshold": self.threshold, "amount": a.amount},
+        )
+
+        reason = Reason(
+            code=ReasonCode.LARGE_AMOUNT,
+            message=f"High-value transfer detected (amount={amount} >= threshold={self.threshold}).",
+            details={"threshold": int(self.threshold), "amount": amount},
+        )
+
+        return Verdict(
+            type=VerdictType.STEP_UP,
+            reasons=[reason],
+            step_up=step,
         )
