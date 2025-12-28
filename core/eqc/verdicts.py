@@ -21,7 +21,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, NewType
+
+
+# Policy-pack compatibility: some packs import this from core.eqc.verdicts
+# Keep it as a simple typed string so it works everywhere.
+StepUpRequirement = NewType("StepUpRequirement", str)
 
 
 class VerdictType(str, Enum):
