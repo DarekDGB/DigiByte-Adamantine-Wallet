@@ -117,6 +117,25 @@ All invariants are enforced in code and locked by CI tests.
 
 ---
 
+---
+
+## Design Motivation vs Enforcement
+
+Some documents in this repository (notably simulated attack reports)
+were written before EQC and WSQK were implemented.
+
+These documents describe *why* a policy-based, context-aware Wallet OS
+was required.
+
+EQC and WSQK are the architectural response to those threats:
+- EQC evaluates actions under explicit context and policy
+- WSQK enforces the resulting verdict at runtime
+
+The simulations are design inputs, not retroactive justifications.
+
+---
+
+
 # 🛡️ Adamantine & The DigiByte Quantum Shield
 
 Adamantine is the **only DigiByte wallet** designed to deeply integrate all 5 layers of the Shield:
@@ -442,6 +461,11 @@ Includes:
 - EQC & WSQK architecture  
 
 ➡️ Security Simulation Reports (01–03) are available in docs/security/
+
+> Note: Security Simulation Reports (01–03) are threat-driven design inputs that
+> predate EQC and WSQK. They document adversarial scenarios that motivated the
+> architecture, not post-hoc mappings of current enforcement behavior.
+
 
 ### 🔐 Security Architecture
 
