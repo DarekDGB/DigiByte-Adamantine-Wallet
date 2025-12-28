@@ -1,56 +1,32 @@
 """
-EQC — Equilibrium Confirmation
+core.eqc — Public API surface (stable imports)
 
-EQC (Equilibrium Confirmation) is the decision brain of Adamantine Wallet OS.
+This module intentionally re-exports only the stable, documented types
+used by the rest of Adamantine Wallet OS.
 
-It evaluates an immutable execution context and returns a deterministic verdict
-that gates all sensitive actions.
-
-Core invariant:
-- EQC decides
-- WSQK executes (only after VerdictType.ALLOW)
-
-EQC never generates keys, never signs, and never executes actions.
+Do NOT import internal modules from outside core.eqc.* directly.
+If you need something new, add it here deliberately.
 
 Author: DarekDGB
 License: MIT (see root LICENSE)
 """
 
-from .verdicts import (
-    Verdict,
-    VerdictType,
-    Reason,
-    ReasonCode,
-    StepUp,
-)
+from __future__ import annotations
 
-from .context import (
-    EQCContext,
-    ActionContext,
-    DeviceContext,
-    NetworkContext,
-    UserContext,
-)
+# Context / data types
+from .context import EQCContext
 
-from .engine import (
-    EQCEngine,
-    EQCDecision,
-)
+# Decisions / verdicts
+from .decision import EQCDecision
+from .verdicts import VerdictType, ReasonCode
+
+# Engine
+from .engine import EQCEngine
 
 __all__ = [
-    # Verdict primitives
-    "Verdict",
-    "VerdictType",
-    "Reason",
-    "ReasonCode",
-    "StepUp",
-    # Context model
-    "EQCContext",
-    "ActionContext",
-    "DeviceContext",
-    "NetworkContext",
-    "UserContext",
-    # Engine API
     "EQCEngine",
+    "EQCContext",
     "EQCDecision",
+    "VerdictType",
+    "ReasonCode",
 ]
