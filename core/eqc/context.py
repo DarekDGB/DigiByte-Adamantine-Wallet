@@ -25,34 +25,26 @@ import json
 import time
 
 
-# -----------------------------
-# Device Context
-# -----------------------------
-
 @dataclass(frozen=True)
 class DeviceContext:
-    device_id: str
-    device_type: str          # mobile, hardware, airgap, browser, extension
-    os: str                   # ios, android, linux
+    # Optional so tests + callers can omit it
+    device_id: Optional[str] = None
+
+    device_type: str = "mobile"     # mobile, hardware, airgap, browser, extension, etc.
+    os: str = "ios"                 # ios, android, linux
     trusted: bool = False
     first_seen_ts: Optional[int] = None
-    app_version: Optional[str] = None  # ✅ required for WSQK enforcement tests
 
+    # Required by WSQK enforcement tests
+    app_version: Optional[str] = None
 
-# -----------------------------
-# Network Context
-# -----------------------------
 
 @dataclass(frozen=True)
 class NetworkContext:
-    network: str              # mainnet, testnet
+    network: str = "mainnet"        # mainnet, testnet
     fee_rate: Optional[int] = None
     peer_count: Optional[int] = None
 
-
-# -----------------------------
-# User Context
-# -----------------------------
 
 @dataclass(frozen=True)
 class UserContext:
@@ -61,21 +53,13 @@ class UserContext:
     pin_set: bool = False
 
 
-# -----------------------------
-# Action Context
-# -----------------------------
-
 @dataclass(frozen=True)
 class ActionContext:
-    action: str               # send, mint, redeem, sign, vote
-    asset: str                # DGB, DigiAsset, DigiDollar
+    action: str                     # send, mint, redeem, sign, vote
+    asset: str                      # DGB, DigiAsset, DigiDollar
     amount: Optional[int] = None
     recipient: Optional[str] = None
 
-
-# -----------------------------
-# EQC Context (Canonical)
-# -----------------------------
 
 @dataclass(frozen=True)
 class EQCContext:
