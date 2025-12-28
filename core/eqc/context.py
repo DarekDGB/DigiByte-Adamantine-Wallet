@@ -41,7 +41,15 @@ class DeviceContext:
 
 @dataclass(frozen=True)
 class NetworkContext:
+    # Keep your original idea (network name)
     network: str = "mainnet"        # mainnet, testnet
+
+    # Fields required by WSQK enforcement tests
+    node_type: Optional[str] = None         # local, digimobile, remote
+    node_trusted: bool = False
+    entropy_score: Optional[float] = None
+
+    # Shared fields
     fee_rate: Optional[int] = None
     peer_count: Optional[int] = None
 
