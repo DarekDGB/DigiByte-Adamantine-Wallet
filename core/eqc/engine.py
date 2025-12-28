@@ -103,7 +103,7 @@ def _make_verdict(
 ) -> Verdict:
     """
     Construct Verdict using the repo's real constructor shape:
-      Verdict(type=..., reasons=[...])
+      Verdict(type=..., reasons=[...], step_up=...)
     """
     return Verdict(type=vtype, reasons=[_safe_reason(message, details, code_override=reason_code)])  # type: ignore[arg-type]
 
@@ -216,7 +216,6 @@ class EQCEngine:
 
         self._policy_registry = policy_registry or PolicyPackRegistry()
 
-        # ✅ IMPORTANT FIX:
         # If enabled_policy_packs is not provided, read from EQC_POLICY_PACKS env var.
         if enabled_policy_packs is None:
             self._enabled_policy_packs = _parse_policy_packs_env()
@@ -268,7 +267,11 @@ class EQCEngine:
 
         # 3) DigiDollar mint/redeem requires step-up (must provide requirements)
         if action_name in {"mint", "redeem"} and asset_name in {"digidollar", "dd"}:
-            code = getattr(ReasonCode, "STEP_UP_REQUIRED", None) if ReasonCode else None
+            code = (
+                getattr(ReasonCode, "MINT_REDEEM_REQUIRES_STEP_UP", None)
+                if ReasonCode
+                else None
+            )
             verdict = _make_verdict(
                 VerdictType.STEP_UP,
                 "Step-up required: DigiDollar mint/redeem requires additional confirmation.",
@@ -298,8 +301,6 @@ class EQCEngine:
 
         # --- Optional policy packs (opt-in) -----------------------------
 
-        # ✅ IMPORTANT FIX:
-        # pass device_signals and tx_signals so packs can decide properly.
         pack_verdicts: List[Verdict] = self._policy_registry.evaluate(
             context=context,
             enabled=self._enabled_policy_packs,
@@ -342,10 +343,10 @@ def _merge_verdicts(verdicts: List[Verdict]) -> Verdict:
     Priority:
       DENY > STEP_UP > ALLOW
 
-    Merge strategy:
-      - choose strongest verdict type present
-      - keep/accumulate reasons from all verdicts of that winning type
-      - if none found (should never happen), return first verdict
+    IMPORTANT:
+    Preserve STEP_UP payload (verdict.step_up) when STEP_UP wins, otherwise
+    tests may see the class staticmethod Verdict.step_up (a function) instead of
+    the instance field step_up (an object with .requirements).
     """
     if not verdicts:
         return _make_verdict(VerdictType.DENY, "No verdicts produced by EQC.")
@@ -354,28 +355,41 @@ def _merge_verdicts(verdicts: List[Verdict]) -> Verdict:
         r = getattr(v, "reasons", None)
         return list(r) if r else []
 
-    # Winner type selection
+    def _first_step_up(vs: List[Verdict]):
+        for v in vs:
+            su = getattr(v, "step_up", None)
+            # Ignore callable (classmethod/staticmethod fallback)
+            if su is not None and not callable(su):
+                return su
+        return None
+
+    # DENY
     if any(v.type == VerdictType.DENY for v in verdicts):
         chosen = [v for v in verdicts if v.type == VerdictType.DENY]
-        merged = _reasons(chosen[0])
-        for v in chosen[1:]:
+        merged: List[Any] = []
+        for v in chosen:
             merged.extend(_reasons(v))
+        if not merged:
+            merged = [_safe_reason("Denied by EQC policy evaluation.", {})]
         return Verdict(type=VerdictType.DENY, reasons=merged)  # type: ignore[arg-type]
 
+    # STEP_UP
     if any(v.type == VerdictType.STEP_UP for v in verdicts):
         chosen = [v for v in verdicts if v.type == VerdictType.STEP_UP]
-        merged = _reasons(chosen[0])
-        for v in chosen[1:]:
+        merged: List[Any] = []
+        for v in chosen:
             merged.extend(_reasons(v))
         if not merged:
             merged = [_safe_reason("Step-up required by EQC policy evaluation.", {})]
-        return Verdict(type=VerdictType.STEP_UP, reasons=merged)  # type: ignore[arg-type]
 
-    # ALLOW path
+        step_up_obj = _first_step_up(chosen)
+        return Verdict(type=VerdictType.STEP_UP, reasons=merged, step_up=step_up_obj)  # type: ignore[arg-type]
+
+    # ALLOW
     chosen = [v for v in verdicts if v.type == VerdictType.ALLOW]
     if chosen:
-        merged = _reasons(chosen[0])
-        for v in chosen[1:]:
+        merged: List[Any] = []
+        for v in chosen:
             merged.extend(_reasons(v))
         if not merged:
             merged = [_safe_reason("Allowed by EQC policy evaluation.", {})]
