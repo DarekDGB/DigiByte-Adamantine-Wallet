@@ -1,64 +1,26 @@
 """
-WSQK — Wallet-Scoped Quantum Key
+core.wsqk — Public API surface (stable imports)
 
-WSQK (Wallet-Scoped Quantum Key) defines the key scoping and execution model
-for Adamantine Wallet OS.
-
-Core invariant:
-- EQC decides
-- WSQK executes (only after VerdictType.ALLOW)
-
-WSQK contains no policy/risk decisions. It only executes within an approved scope.
+WSQK is an execution authority model.
+This __init__ file is the stable import boundary for WSQK types.
 
 Author: DarekDGB
 License: MIT (see root LICENSE)
 """
 
-from .scopes import (
-    WSQKScope,
-    ScopeType,
-)
+from __future__ import annotations
 
-from .context_bind import (
-    BoundScope,
-    bind_scope_from_eqc,
-    WSQKBindError,
-)
+# Core types
+from .scopes import WSQKScope
+from .session import WSQKSession
 
-from .executor import (
-    WSQKExecutionResult,
-    execute_with_scope,
-    WSQKExecutionError,
-)
-
-from .session import (
-    WSQKSession,
-    WSQKSessionError,
-)
-
-from .guard import (
-    WSQKGuardedResult,
-    execute_guarded,
-    WSQKGuardError,
-)
+# Public functions (binding + execution)
+from .context_bind import bind_scope_from_eqc
+from .executor import execute_with_scope
 
 __all__ = [
-    # Scope model
     "WSQKScope",
-    "ScopeType",
-    # EQC binding
-    "BoundScope",
-    "bind_scope_from_eqc",
-    "WSQKBindError",
-    # Execution stub (no crypto yet)
-    "WSQKExecutionResult",
-    "execute_with_scope",
-    "WSQKExecutionError",
-    # Session + replay protection
     "WSQKSession",
-    "WSQKSessionError",
-    # Guarded single-use execution
-    "WSQKGuardedResult",
-    "execute_guarded",
-    "WSQKGuardError",
+    "bind_scope_from_eqc",
+    "execute_with_scope",
 ]
