@@ -67,18 +67,19 @@ Core rule:
 
 ### C5 — Single-use (replay-proof)
 
-#### C5a — Session-level replay protection (ENFORCED)
-- [x] WSQK issues a nonce per session
+#### C5a — Session/process-level replay protection (ENFORCED)
+- [x] WSQK issues a nonce per session (or per guarded execution flow)
 - [x] Successful execution consumes the nonce
-- [x] Replaying the same nonce within the same session fails deterministically
+- [x] Replaying the same nonce within the same live process/session fails deterministically
 - [x] Replay failure raises an explicit error (not silent)
 
 > This invariant guarantees **replay protection within a live wallet process**.
 
-#### C5b — Cross-restart replay protection (PLANNED / OPTIONAL HARDENING)
+#### C5b — Cross-restart replay protection (REQUIRED FOR HIGH-VALUE / HARDENED DEPLOYMENTS)
 - [ ] Used nonces persist across wallet restarts
-- [ ] Restart does not erase nonce history
+- [ ] Restart does not erase nonce history for still-valid scopes
 - [ ] Ledger is wallet-scoped (no cross-wallet contamination)
+- [ ] Retention/GC policy exists (nonces expire out of storage safely)
 
 > Note: Current implementation stores nonce usage **in memory only**.  
 > This is sufficient for session integrity and test coverage, but **high-value  
@@ -123,10 +124,13 @@ These tests must remain green:
 - [ ] Browser deny reason code present
 - [ ] Extension deny reason code present
 - [ ] Mint/redeem STEP_UP contains requirements
-- [ ] WSQK replay blocked (session-level)
+- [ ] WSQK replay blocked (session/process-level)
 - [ ] WSQK wallet mismatch blocked
 - [ ] WSQK context mismatch blocked
 - [ ] Policy packs only tighten security test
+
+Recommended hardening (deployment-dependent):
+- [ ] WSQK nonce ledger persists across restart (C5b) — required for high-value operations
 
 ---
 
