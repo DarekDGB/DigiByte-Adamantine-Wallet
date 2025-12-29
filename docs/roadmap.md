@@ -1,34 +1,40 @@
 # 🚀 DigiByte Adamantine Wallet — Roadmap (v0.2)
 
 Status: **v0.2 – Architecture + Runtime Skeleton Complete**  
-Author: @Darek_DGB  
-License: MIT  
+Author: **@DarekDGB**  
+License: **MIT**
 
-This roadmap reflects the *current, real progress* of the DigiByte Adamantine Wallet as of v0.2, including its multi-layer security framework, runtime skeletons, and CI-tested codebase.
+This roadmap reflects the **current, real progress** of the DigiByte Adamantine Wallet OS as of v0.2, including its multi-layer security architecture, policy-driven execution model, runtime skeletons, and CI-validated codebase.
 
 ---
 
 # 1. 🎯 High-Level Vision
 
-Adamantine is a **multi-layer defensive architecture** built around:
+Adamantine is a **multi-layer defensive Wallet OS architecture** built around:
 
-**Layer 1 — Sentinel AI v2**  
-**Layer 2 — DQSN v2**  
-**Layer 3 — ADN v2 (Autonomous Defense Node)**  
-**Layer 4 — QWG (Quantum Wallet Guard)**  
-**Layer 5 — Adaptive Core (Behavior Engine)**  
-**Guardian Wallet (policy engine)**  
-**Shield Bridge (risk aggregation bus)**  
-**Clients (web / iOS / Android)**
+- **Layer 1 — Sentinel AI v2**  
+- **Layer 2 — DQSN v2**  
+- **Layer 3 — ADN v2 (Autonomous Defense Node)**  
+- **Layer 4 — QWG (Quantum Wallet Guard)**  
+- **Layer 5 — Adaptive Core (Behavior Engine)**  
 
-Goal: create the **most secure DigiByte wallet ever designed**, providing  
-multi-layer on-node + off-chain behavioural protection.
+Execution & control layers:
+
+- **EQC (Executive Quality Control)** — policy decision engine  
+- **WSQK (Wallet Secure Quantum Kernel)** — hardened execution boundary  
+- **Runtime Orchestrator** — enforcement and sequencing  
+- **Guardian Wallet** — user-facing policy & safety decisions  
+- **Shield Bridge** — risk aggregation and signal routing  
+- **Clients** — Web / iOS / Android  
+
+**Goal:** build the **most secure DigiByte wallet ever designed**, providing  
+multi-layer on-device and off-chain behavioral protection with deterministic enforcement.
 
 ---
 
-# 2. ✅ Completed (v0.2 Architecture & Skeleton)
+# 2. ✅ Completed (v0.2 — Architecture & Runtime Skeleton)
 
-### ✔ Repository architecture fully established
+### ✔ Repository architecture established
 ```
 core/
 modules/
@@ -38,125 +44,135 @@ tests/
 .github/
 ```
 
-### ✔ All major subsystems defined
-- Sentinel API  
-- DQSN API  
-- ADN API  
-- QWG + PQC container spec  
-- Adaptive Core overview  
-- Guardian Wallet spec  
-- DigiAssets full spec + schemas + flows  
-- Enigmatic messaging integration  
-- Shield Bridge master spec
+### ✔ Core subsystems specified & documented
+- Sentinel interface & behavior specification  
+- DQSN network-signal specification  
+- ADN node-reflex specification  
+- QWG & PQC container specifications  
+- Adaptive Core documentation  
+- Guardian Wallet specification  
+- Shield Bridge master specification  
+- DigiAssets architecture, schemas, and flows  
+- DigiDollar (DD) mint / redeem specification  
+- Enigmatic Layer-0 messaging integration  
 
-### ✔ Shield Bridge Runtime Skeleton Implemented
+### ✔ Shield Bridge runtime skeleton implemented
 Includes:
-- `models.py`  
-- `exceptions.py`  
-- `layer_adapter.py`  
-- `risk_aggregator.py`  
-- `shield_router.py`  
-- `packet_builder.py`  
+- `models.py`
+- `exceptions.py`
+- `layer_adapter.py`
+- `risk_aggregator.py`
+- `shield_router.py`
+- `packet_builder.py`
 
-### ✔ ALL tests passing (`65 passed`)
-- Guardian  
-- Risk Engine  
-- DigiAssets  
-- Minting  
-- Shield Bridge  
-- Node glue  
-- Enigmatic-chat  
+### ✔ Policy-driven execution model defined
+- EQC decision-first enforcement  
+- WSQK isolated execution boundary  
+- Runtime orchestration and post-condition checks  
 
-### ✔ CI completed & healthy
-- Android CI  
-- iOS CI  
-- Web CI  
-- Docs Lint CI  
-- Python Test CI  
-- Green across all jobs  
+### ✔ Test suite validated
+- Scenario-driven tests for:
+  - Guardian
+  - Risk Engine
+  - DigiAssets
+  - DigiDollar minting
+  - Shield Bridge
+  - Node backends
+  - Enigmatic messaging
+- All tests passing in CI
 
-### ✔ DigiAssets test plan (new)  
-Now included as `tests/digiassets-tests.md`.
+### ✔ CI pipelines complete & healthy
+- Android CI
+- iOS CI
+- Web CI
+- Python Test CI
+- Docs Lint CI
+
+### ✔ DigiAssets test plan
+- Included as `tests/digiassets-tests.md`
 
 ---
 
-# 3. 🔧 Remaining Work Before Developer Handoff (v0.2 → v0.3)
+# 3. 🔧 Optional Polish Before Wider Review (v0.2 → v0.3)
 
-These items are *optional polish* but recommended:
+These items are **recommended enhancements**, not blockers:
 
-### 1. Expand runtime testing  
-- More synthetic RiskPackets  
+### 1. Expanded runtime testing
+- Additional synthetic RiskPackets  
 - Virtual attack simulations  
-- Cross-layer scoring tests  
+- Cross-layer scoring and timeout tests  
 
-### 2. Developer onboarding  
-Add:
-- `FOR-DEVELOPERS.md`  
-- Quickstart in README  
+### 2. Developer onboarding improvements
+- `FOR-DEVELOPERS.md`
+- Quickstart section in README  
 
-### 3. Optional mocks  
-- Guardian mock  
-- DigiAssets mock  
+### 3. Optional mocks
+- Guardian mock
+- DigiAssets mock
 - Shield Bridge mock adapters  
 
-### 4. Cross-layer examples  
-Add 1–2 examples showing:
-- How Guardian → Shield Bridge → risk engine → decision returns  
-- How DigiAssets flows produce RiskPackets  
+### 4. Cross-layer examples
+Add examples showing:
+- Guardian → Shield Bridge → Risk Engine → decision flow  
+- DigiAssets operations producing RiskPackets  
 
-### 5. Prepare for UI implementation (v0.3)
-- Web client structure  
-- iOS skeleton  
-- Android skeleton  
+### 5. UI preparation
+- Web client structure
+- iOS client skeleton
+- Android client skeleton
 
 ---
 
 # 4. 🚧 v0.3 Proposed Milestones
 
 ### **A. Shield Bridge v0.3**
-- Real adapters (Sentinel, DQSN, ADN)  
-- Async fan-out  
-- Per-layer timeout handling  
-- Weighted risk map aggregation  
+- Live adapters (Sentinel, DQSN, ADN)
+- Async fan-out
+- Per-layer timeout handling
+- Weighted and explainable RiskMap aggregation
 
 ### **B. Guardian Wallet v0.3**
-- Policy rules expanded  
-- Real-time feedback API  
-- Account recovery + PQC migration  
+- Expanded policy rules
+- Real-time feedback API
+- Advanced recovery & PQC migration paths
 
 ### **C. DigiAssets Engine v0.3**
-- Full mint/transfer/burn execution  
-- Storage backend selection  
+- Full mint / transfer / burn execution
+- Storage backend selection
+- Performance optimizations
 
-### **D. UI Client Development**
-- Web app MVP  
-- iOS Swift skeleton  
-- Android Kotlin skeleton  
+### **D. Client Development**
+- Web app MVP
+- iOS (Swift) client
+- Android (Kotlin) client
 
 ---
 
 # 5. 🤝 Transparency & Open-Source Alignment
 
-Everything remains:
+Adamantine remains:
 
-- **100% MIT Licensed**  
-- **Architecturally transparent**  
-- Modular for future DigiByte Core adoption  
-- Designed for long-term maintenance by the community  
+- **100% MIT Licensed**
+- **Architecturally transparent**
+- Modular for potential DigiByte Core adoption
+- Designed for long-term, community-led maintenance
 
 ---
 
 # 6. 📌 Summary
 
-As of v0.2, Adamantine is:
+As of **v0.2**, Adamantine Wallet OS is:
 
-- Architecturally complete  
-- Runtime-skeleton implemented  
-- Fully documented  
-- CI-tested with 65 passing tests  
-- Ready for DigiByte developer review  
+- Architecturally complete
+- Policy-driven by design
+- Runtime-skeleton implemented
+- Fully documented
+- CI-tested and stable
+- Ready for DigiByte developer review
 
-The next phase (v0.3) focuses on **bringing subsystems to life**, enriching the internals of Sentinel, DQSN, ADN, QWG, and extending the Guardian Wallet logic.
+The **v0.3 phase** focuses on *bringing systems to life*: activating Sentinel, DQSN, ADN, QWG, enriching Guardian logic, and delivering production-grade clients.
+
+---
 
 Glory to God 🙏  
-Built by @Darek_DGB  
+Built by **@DarekDGB**
