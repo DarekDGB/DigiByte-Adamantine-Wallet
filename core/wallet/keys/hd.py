@@ -1,22 +1,23 @@
 """
-HD Wallet scaffolding (BIP32 / BIP44)
+HD Wallet scaffolding (BIP32 / BIP44) + BIP32 master key derivation
 
-This file is intentionally lightweight (iPhone + CI-safe).
-We implement:
+Implements:
 - DerivationPath parsing (m/44'/coin'/account'/change/index)
-- Strong validation + helpers
+- BIP32 master key derivation from seed (HMAC-SHA512 with key "Bitcoin seed")
 
 TODO (next phases):
-- BIP32 private/public key derivation (HMAC-SHA512)
+- Child key derivation (CKDpriv/CKDpub)
 - secp256k1 pubkey generation
 - xprv/xpub serialization (base58check)
-- DigiByte coin type + network versions
+- DigiByte-specific version bytes + address formats
 """
 
 from __future__ import annotations
 
+import hmac
+import hashlib
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import List, Tuple
 
 from ..errors import WalletError, NotImplementedYet
 
@@ -26,6 +27,10 @@ HARDENED_OFFSET = 0x80000000
 
 class HDPathError(WalletError):
     """Invalid HD derivation path."""
+
+
+class BIP32Error(WalletError):
+    """BIP32 derivation error."""
 
 
 @dataclass(frozen=True)
@@ -101,19 +106,59 @@ def bip44_path(coin_type: int, account: int = 0, change: int = 0, address_index:
     )
 
 
+def _hmac_sha512(key: bytes, data: bytes) -> bytes:
+    return hmac.new(key, data, hashlib.sha512).digest()
+
+
+def master_key_from_seed(seed: bytes) -> Tuple[bytes, bytes]:
+    """
+    BIP32 master key derivation:
+      I = HMAC-SHA512(key="Bitcoin seed", data=seed)
+      master_privkey = IL (32 bytes)
+      master_chaincode = IR (32 bytes)
+
+    Returns: (master_private_key_32, master_chain_code_32)
+
+    NOTE:
+    - We do NOT validate curve order here yet (requires secp256k1 constants).
+      That validation is added when we introduce real child derivation.
+    """
+    if not isinstance(seed, (bytes, bytearray)):
+        raise BIP32Error("Seed must be bytes.")
+    if len(seed) < 16 or len(seed) > 64:
+        # BIP39 seed is 64 bytes, but we accept common ranges to be safe.
+        raise BIP32Error("Seed length looks invalid (expected 16..64 bytes).")
+
+    I = _hmac_sha512(b"Bitcoin seed", bytes(seed))
+    IL, IR = I[:32], I[32:]
+    if len(IL) != 32 or len(IR) != 32:
+        raise BIP32Error("Unexpected HMAC output length.")
+    return IL, IR
+
+
 @dataclass(frozen=True)
 class HDNode:
     """
     Minimal HD node container.
 
-    TODO:
-    - Store private key bytes securely
-    - Compute public key
-    - Derive child keys per BIP32
+    For now we keep only what we can safely compute without secp256k1 math:
+    - private_key (hex)
+    - chain_code (hex)
     """
     depth: int
     child_number: int
+    private_key_hex: str
     chain_code_hex: str
 
+    @classmethod
+    def from_seed(cls, seed: bytes) -> "HDNode":
+        priv, cc = master_key_from_seed(seed)
+        return cls(
+            depth=0,
+            child_number=0,
+            private_key_hex=priv.hex(),
+            chain_code_hex=cc.hex(),
+        )
+
     def derive(self, path: DerivationPath) -> "HDNode":
-        raise NotImplementedYet("TODO: implement BIP32 derive().")
+        raise NotImplementedYet("TODO: implement BIP32 child derivation (CKDpriv).")
