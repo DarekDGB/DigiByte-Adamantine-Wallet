@@ -3,7 +3,7 @@
 **Author:** DarekDGB  
 **License:** MIT
 
-This checklist defines the **non-negotiable invariants** of Adamantine Wallet OS.
+This checklist defines the **non-negotiable invariants** of Adamantine Wallet OS.  
 If any invariant breaks, security is broken — even if features still “work”.
 
 Core rule:
@@ -66,8 +66,24 @@ Core rule:
 - [ ] Expired scope blocks execution
 
 ### C5 — Single-use (replay-proof)
-- [ ] Successful execution consumes nonce
-- [ ] Replaying same scope fails deterministically
+
+#### C5a — Session-level replay protection (ENFORCED)
+- [x] WSQK issues a nonce per session
+- [x] Successful execution consumes the nonce
+- [x] Replaying the same nonce within the same session fails deterministically
+- [x] Replay failure raises an explicit error (not silent)
+
+> This invariant guarantees **replay protection within a live wallet process**.
+
+#### C5b — Cross-restart replay protection (PLANNED / OPTIONAL HARDENING)
+- [ ] Used nonces persist across wallet restarts
+- [ ] Restart does not erase nonce history
+- [ ] Ledger is wallet-scoped (no cross-wallet contamination)
+
+> Note: Current implementation stores nonce usage **in memory only**.  
+> This is sufficient for session integrity and test coverage, but **high-value  
+> operations (e.g. DigiDollar mint/redeem)** SHOULD enable a persistent nonce  
+> ledger (SQLite / secure storage) in hardened deployments.
 
 ---
 
@@ -107,7 +123,7 @@ These tests must remain green:
 - [ ] Browser deny reason code present
 - [ ] Extension deny reason code present
 - [ ] Mint/redeem STEP_UP contains requirements
-- [ ] WSQK replay blocked
+- [ ] WSQK replay blocked (session-level)
 - [ ] WSQK wallet mismatch blocked
 - [ ] WSQK context mismatch blocked
 - [ ] Policy packs only tighten security test
@@ -116,4 +132,4 @@ These tests must remain green:
 
 ## Release Rule
 
-No PR may merge if it breaks any “Hard” invariant.
+No PR may merge if it breaks any **Hard** invariant.
