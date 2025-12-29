@@ -1,14 +1,24 @@
 """
-HD Wallet (BIP32/BIP44) — CKDpriv hardened + non-hardened + BIP44 helpers
+HD Wallet (BIP32/BIP44)
 
-Now implements:
+Implements:
+- DerivationPath parsing
 - BIP32 master key derivation from seed
 - CKDpriv hardened (i >= 2^31)
-- CKDpriv non-hardened (i < 2^31)  <-- requires parent pubkey
-- Parent fingerprint (hash160(pubkey)[:4])
-- BIP44 helpers to derive:
-  m/44'/coin'/account' (hardened)
-  then /change/index (non-hardened)
+- CKDpriv non-hardened (i < 2^31) using parent compressed pubkey
+- Parent fingerprint (HASH160(pubkey)[:4])
+- BIP44 helpers:
+    m/44'/coin'/account' (hardened)
+    then /change/index (non-hardened)
+
+Compatibility:
+- Keeps older helpers used by existing tests:
+  - bip44_path(...)
+  - derive_bip44_purpose(...)
+  - derive_bip44_coin(...)
+  - derive_bip44_account(...)
+  - bip44_account_path(...)
+  - derive_path_hardened_only(...)
 
 TODO (next phases):
 - xprv/xpub serialization (base58check)
@@ -23,7 +33,7 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 from ..errors import WalletError
-from .secp256k1 import pubkey_from_privkey, N as SECP256K1_N
+from .secp256k1 import pubkey_from_privkey, N as SECP256K1_N  # export below
 
 
 HARDENED_OFFSET = 0x80000000
@@ -52,6 +62,10 @@ class DerivationIndex:
 
 @dataclass(frozen=True)
 class DerivationPath:
+    """
+    Represents a BIP32 style path, e.g.:
+      m/44'/0'/0'/0/0
+    """
     segments: Tuple[DerivationIndex, ...]
 
     @classmethod
@@ -86,6 +100,33 @@ class DerivationPath:
     def to_uint32_list(self) -> List[int]:
         return [s.to_uint32() for s in self.segments]
 
+
+# ----------------------------
+# BIP44 path builder (used by tests)
+# ----------------------------
+
+def bip44_path(coin_type: int, account: int = 0, change: int = 0, address_index: int = 0) -> DerivationPath:
+    """
+    Standard BIP44 path:
+      m / 44' / coin_type' / account' / change / address_index
+    """
+    if change not in (0, 1):
+        raise HDPathError("change must be 0 (external) or 1 (internal).")
+
+    return DerivationPath(
+        segments=(
+            DerivationIndex(44, hardened=True),
+            DerivationIndex(coin_type, hardened=True),
+            DerivationIndex(account, hardened=True),
+            DerivationIndex(change, hardened=False),
+            DerivationIndex(address_index, hardened=False),
+        )
+    )
+
+
+# ----------------------------
+# Small helpers
+# ----------------------------
 
 def _hmac_sha512(key: bytes, data: bytes) -> bytes:
     return hmac.new(key, data, hashlib.sha512).digest()
@@ -126,7 +167,17 @@ def fingerprint_from_pubkey(pubkey_bytes: bytes) -> bytes:
     return hash160(pubkey_bytes)[:4]
 
 
+# ----------------------------
+# BIP32 core
+# ----------------------------
+
 def master_key_from_seed(seed: bytes) -> Tuple[bytes, bytes]:
+    """
+    BIP32 master key derivation:
+      I = HMAC-SHA512(key="Bitcoin seed", data=seed)
+      master_privkey = IL (32 bytes)
+      master_chaincode = IR (32 bytes)
+    """
     if not isinstance(seed, (bytes, bytearray)):
         raise BIP32Error("Seed must be bytes.")
     if len(seed) < 16 or len(seed) > 64:
@@ -137,12 +188,16 @@ def master_key_from_seed(seed: bytes) -> Tuple[bytes, bytes]:
 
 
 def ckdpriv_hardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, child_number: int) -> Tuple[bytes, bytes]:
+    """
+    Hardened CKDpriv, for i >= 2^31:
+      data = 0x00 || ser256(kpar) || ser32(i)
+    """
     if len(parent_privkey_32) != 32:
         raise BIP32Error("Parent privkey must be 32 bytes.")
     if len(parent_chaincode_32) != 32:
         raise BIP32Error("Parent chain code must be 32 bytes.")
     if child_number < HARDENED_OFFSET:
-        raise BIP32Error("Only hardened child numbers supported here (i >= 2^31).")
+        raise BIP32Error("This function only supports hardened child numbers (i >= 2^31).")
 
     kpar = _parse256(parent_privkey_32)
     if kpar <= 0 or kpar >= SECP256K1_N:
@@ -154,7 +209,7 @@ def ckdpriv_hardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, child
 
     il_int = _parse256(IL)
     if il_int >= SECP256K1_N:
-        raise BIP32Error("Derived IL invalid (>= n).")
+        raise BIP32Error("Derived IL is invalid (>= n).")
 
     ki = (il_int + kpar) % SECP256K1_N
     if ki == 0:
@@ -165,13 +220,15 @@ def ckdpriv_hardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, child
 
 def ckdpriv_nonhardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, child_number: int) -> Tuple[bytes, bytes]:
     """
-    Non-hardened CKDpriv (i < 2^31) requires parent public key:
+    Non-hardened CKDpriv, for i < 2^31:
       data = serP(Kpar) || ser32(i)
     """
     if child_number >= HARDENED_OFFSET:
         raise BIP32Error("Non-hardened child_number must be < 2^31.")
-    if len(parent_privkey_32) != 32 or len(parent_chaincode_32) != 32:
-        raise BIP32Error("Parent privkey/chaincode must be 32 bytes each.")
+    if len(parent_privkey_32) != 32:
+        raise BIP32Error("Parent privkey must be 32 bytes.")
+    if len(parent_chaincode_32) != 32:
+        raise BIP32Error("Parent chain code must be 32 bytes.")
 
     kpar = _parse256(parent_privkey_32)
     if kpar <= 0 or kpar >= SECP256K1_N:
@@ -185,7 +242,7 @@ def ckdpriv_nonhardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, ch
 
     il_int = _parse256(IL)
     if il_int >= SECP256K1_N:
-        raise BIP32Error("Derived IL invalid (>= n).")
+        raise BIP32Error("Derived IL is invalid (>= n).")
 
     ki = (il_int + kpar) % SECP256K1_N
     if ki == 0:
@@ -194,13 +251,20 @@ def ckdpriv_nonhardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, ch
     return _ser256(ki), IR
 
 
+# ----------------------------
+# Node
+# ----------------------------
+
 @dataclass(frozen=True)
 class HDNode:
+    """
+    Private HD node (we can compute pubkeys from privkey using secp256k1.py).
+    """
     depth: int
     child_number: int
     private_key_hex: str
     chain_code_hex: str
-    parent_fingerprint_hex: str = "00000000"  # root has 00000000
+    parent_fingerprint_hex: str = "00000000"  # root uses 00000000
 
     @classmethod
     def from_seed(cls, seed: bytes) -> "HDNode":
@@ -225,6 +289,8 @@ class HDNode:
     def fingerprint(self) -> bytes:
         return fingerprint_from_pubkey(self.pubkey_compressed())
 
+    # ---- derivation ----
+
     def derive_hardened(self, index: int) -> "HDNode":
         if index < 0 or index > 0x7FFFFFFF:
             raise BIP32Error("Hardened index must be 0..2^31-1.")
@@ -242,7 +308,7 @@ class HDNode:
     def derive_nonhardened(self, index: int) -> "HDNode":
         if index < 0 or index > 0x7FFFFFFF:
             raise BIP32Error("Non-hardened index must be 0..2^31-1.")
-        child_number = index  # non-hardened
+        child_number = index
 
         child_priv, child_cc = ckdpriv_nonhardened(self._priv_bytes(), self._cc_bytes(), child_number)
         return HDNode(
@@ -262,29 +328,59 @@ class HDNode:
                 node = node.derive_nonhardened(seg.index)
         return node
 
+    # Compatibility for earlier tests
+    def derive_path_hardened_only(self, path: DerivationPath) -> "HDNode":
+        node: HDNode = self
+        for seg in path.segments:
+            if not seg.hardened:
+                raise BIP32Error("Non-hardened derivation not supported in hardened-only mode.")
+            node = node.derive_hardened(seg.index)
+        return node
+
 
 # ----------------------------
-# BIP44 helpers
+# BIP44 helpers (compat + new)
 # ----------------------------
 
-def derive_bip44_account(root: HDNode, coin_type: int, account: int = 0) -> HDNode:
-    # m/44'/coin_type'/account'
+def derive_bip44_purpose(root: HDNode) -> HDNode:
+    """m/44'"""
+    return root.derive_hardened(44)
+
+
+def derive_bip44_coin(root: HDNode, coin_type: int) -> HDNode:
+    """m/44'/coin_type'"""
     if coin_type < 0 or coin_type > 0x7FFFFFFF:
         raise BIP32Error("coin_type must be 0..2^31-1.")
+    return derive_bip44_purpose(root).derive_hardened(coin_type)
+
+
+def derive_bip44_account(root: HDNode, coin_type: int, account: int = 0) -> HDNode:
+    """m/44'/coin_type'/account'"""
     if account < 0 or account > 0x7FFFFFFF:
         raise BIP32Error("account must be 0..2^31-1.")
-    return root.derive_hardened(44).derive_hardened(coin_type).derive_hardened(account)
+    return derive_bip44_coin(root, coin_type).derive_hardened(account)
+
+
+def bip44_account_path(coin_type: int, account: int = 0) -> DerivationPath:
+    """Convenience path object: m/44'/coin_type'/account'"""
+    return DerivationPath(
+        segments=(
+            DerivationIndex(44, hardened=True),
+            DerivationIndex(coin_type, hardened=True),
+            DerivationIndex(account, hardened=True),
+        )
+    )
 
 
 def derive_bip44_chain(account_node: HDNode, change: int = 0) -> HDNode:
-    # /change (0 external, 1 internal)
+    """account'/change where change=0 external, 1 internal"""
     if change not in (0, 1):
         raise BIP32Error("change must be 0 (external) or 1 (internal).")
     return account_node.derive_nonhardened(change)
 
 
 def derive_bip44_address(account_node: HDNode, change: int, index: int) -> HDNode:
-    # /change/index
+    """account'/change/index"""
     if index < 0 or index > 0x7FFFFFFF:
         raise BIP32Error("index must be 0..2^31-1.")
     return derive_bip44_chain(account_node, change).derive_nonhardened(index)
