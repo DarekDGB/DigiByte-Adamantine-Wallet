@@ -22,11 +22,6 @@ import json
 import time
 
 
-class WSQKScopeError(Exception):
-    """Raised when WSQK scope constraints are violated."""
-    pass
-
-
 @dataclass(frozen=True)
 class WSQKScope:
     """
@@ -36,6 +31,8 @@ class WSQKScope:
       - fields: wallet_id, action, context_hash, not_before, expires_at
       - methods: is_active, assert_active, assert_wallet, assert_action, assert_context
       - methods: scope_hash, from_ttl
+      - assertion methods raise ValueError on violation
+      - from_ttl allows ttl_seconds <= 0 to create an already-expired scope
     """
     wallet_id: str
     action: str
@@ -49,19 +46,19 @@ class WSQKScope:
 
     def assert_active(self, now: Optional[int] = None) -> None:
         if not self.is_active(now=now):
-            raise WSQKScopeError("WSQK scope is not active (expired or not yet valid).")
+            raise ValueError("WSQK scope is not active (expired or not yet valid).")
 
     def assert_wallet(self, wallet_id: str) -> None:
         if wallet_id != self.wallet_id:
-            raise WSQKScopeError("WSQK scope wallet_id mismatch.")
+            raise ValueError("WSQK scope wallet_id mismatch.")
 
     def assert_action(self, action: str) -> None:
         if (action or "").lower() != (self.action or "").lower():
-            raise WSQKScopeError("WSQK scope action mismatch.")
+            raise ValueError("WSQK scope action mismatch.")
 
     def assert_context(self, context_hash: str) -> None:
         if context_hash != self.context_hash:
-            raise WSQKScopeError("WSQK scope context_hash mismatch.")
+            raise ValueError("WSQK scope context_hash mismatch.")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -88,10 +85,16 @@ class WSQKScope:
         ttl_seconds: int = 60,
         now: Optional[int] = None,
     ) -> "WSQKScope":
+        """
+        Create a scope that is valid immediately for ttl_seconds.
+
+        IMPORTANT (per tests):
+        - ttl_seconds may be <= 0 to intentionally create an already-expired scope
+          (e.g., ttl_seconds=-1 means expires_at < now).
+        """
         t = int(now if now is not None else time.time())
         ttl = int(ttl_seconds)
-        if ttl <= 0:
-            raise ValueError("ttl_seconds must be > 0")
+
         return WSQKScope(
             wallet_id=wallet_id,
             action=action,
