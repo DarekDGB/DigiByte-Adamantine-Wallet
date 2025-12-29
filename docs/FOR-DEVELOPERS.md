@@ -11,7 +11,7 @@ License: **MIT**
 
 This manual is written for **DigiByte Core developers**, wallet
 engineers, security researchers, and future maintainers of the
-**Adamantine Wallet**.
+**Adamantine Wallet OS**.
 
 It explains:
 
@@ -19,12 +19,13 @@ It explains:
 -   Architectural rules\
 -   Naming conventions (documentation vs runtime)\
 -   Subsystem responsibilities\
--   Shield‑Bridge orchestration logic\
+-   Shield-Bridge orchestration logic\
+-   EQC / WSQK / Runtime execution law\
 -   How to extend any layer safely\
 -   CI and contribution standards\
 -   Stability guarantees for v0.2 → v0.3
 
-This is a **long‑term engineering manual**, not a marketing document.
+This is a **long-term engineering manual**, not a marketing document.
 
 ------------------------------------------------------------------------
 
@@ -46,7 +47,7 @@ Documentation in `docs/` is the **source of truth**.
 
 ------------------------------------------------------------------------
 
-## 1.2 Test‑First, Runtime‑Second
+## 1.2 Test-First, Runtime-Second
 
 The development sequence is:
 
@@ -57,7 +58,7 @@ This ensures:
 -   stability\
 -   safety\
 -   deterministic behaviour\
--   long‑term maintainability
+-   long-term maintainability
 
 ------------------------------------------------------------------------
 
@@ -67,6 +68,7 @@ Rules:
 
 -   Layers cannot call each other directly\
 -   Guardian cannot bypass Shield Bridge\
+-   Runtime cannot be entered without policy approval\
 -   Node cannot inject signals into unrelated layers\
 -   All communication moves through:\
     **RiskPacket → LayerResult → RiskMap**
@@ -88,7 +90,7 @@ If changes are required:
 
 ## 1.5 Transparency Through MIT Licensing
 
-Open, auditable, forkable, community‑safe.
+Open, auditable, forkable, community-safe.
 
 ------------------------------------------------------------------------
 
@@ -105,12 +107,16 @@ Open, auditable, forkable, community‑safe.
 
 ## 2.1 `core/` --- The Engine Room
 
-Contains all **security‑critical runtime logic**.
+Contains all **security-critical runtime logic**.
 
     core/
+      eqc/
+      wsqk/
+      runtime/
       adaptive-core/
       digiassets/
       guardian-wallet/
+      guardian_wallet/
       node/
       pqc-containers/
       qwg/
@@ -118,23 +124,26 @@ Contains all **security‑critical runtime logic**.
       shield-bridge/
 
 Each folder contains **runtime Python code** in snake_case.
+Where kebab-case variants exist, they serve **specification or packaging roles**, not parallel runtimes.
 
 ------------------------------------------------------------------------
 
 ## 2.2 `modules/` --- Feature Extensions
 
     modules/
+      dd-minting/
       dd_minting/
       digiassets/
       enigmatic-chat/
 
 Rules:
 
--   Non‑critical business logic\
+-   Non-critical business logic\
 -   May depend on `core/`\
 -   Must not weaken core security guarantees
 
 Runtime code exists **only** in underscore (`_`) modules.
+Kebab-case module folders are documentation or spec counterparts.
 
 ------------------------------------------------------------------------
 
@@ -144,7 +153,7 @@ Android / iOS / Web skeletons.
 
 -   Consume exposed APIs\
 -   Never implement security logic\
--   Never bypass Guardian or Shield Bridge
+-   Never bypass Guardian, EQC, WSQK, or Shield Bridge
 
 ------------------------------------------------------------------------
 
@@ -155,7 +164,8 @@ Contains:
 -   specifications\
 -   flows\
 -   diagrams\
--   design rationale
+-   design rationale\
+-   execution laws and invariants
 
 Python code **must follow documentation**, not the other way around.
 
@@ -175,18 +185,20 @@ Adamantine uses **two naming styles for two purposes**.
 
 ------------------------------------------------------------------------
 
-## 3.1 `kebab-case` --- Documentation Only
+## 3.1 `kebab-case` --- Documentation & Specs
 
 Used **exclusively** for:
 
 -   architecture documents\
 -   conceptual specs\
--   flow descriptions
+-   flow descriptions\
+-   human-readable subsystem boundaries
 
 Example:
 
     docs/shield-bridge/
     docs/guardian-wallet/
+    modules/dd-minting/
 
 These folders **never contain runtime Python code**.
 
@@ -233,7 +245,8 @@ Responsibilities:
 -   Layers never communicate directly\
 -   Guardian never bypasses Shield Bridge\
 -   Shield Bridge never applies subjective weighting\
--   Risk Engine owns final scoring
+-   Risk Engine owns final scoring\
+-   Runtime enforces outcomes after EQC approval
 
 ------------------------------------------------------------------------
 
@@ -246,7 +259,8 @@ Responsibilities:
 3.  Add tests\
 4.  Register in Shield Bridge\
 5.  Update Risk Engine\
-6.  Update Guardian rules
+6.  Update Guardian rules\
+7.  Validate EQC policy coverage
 
 ------------------------------------------------------------------------
 
@@ -262,7 +276,8 @@ Any new rule requires:
 
 -   documentation\
 -   tests\
--   stable RiskMap mapping
+-   stable RiskMap mapping\
+-   explicit EQC allow/deny semantics
 
 ------------------------------------------------------------------------
 
@@ -284,10 +299,13 @@ CI failure = rejection.
 
   Subsystem         Stability
   ----------------- ----------------
+  EQC               🔒 Stable
+  WSQK              🔒 Stable
+  Runtime           🔒 Stable
   Shield Bridge     🔒 Stable
   Risk Engine       🔒 Stable
-  Guardian Wallet   🟡 Semi‑Stable
-  DigiAssets        🟡 Semi‑Stable
+  Guardian Wallet   🟡 Semi-Stable
+  DigiAssets        🟡 Semi-Stable
   PQC Containers    🔒 Stable
   Node              🔒 Stable
   Adaptive Core     🟡 Evolving
@@ -301,11 +319,56 @@ This document defines:
 
 -   engineering law\
 -   architectural intent\
+-   execution constraints\
 -   extension rules\
 -   stability guarantees
 
 Adamantine is designed to last **years**.
 
-------------------------------------------------------------------------
+--------------------------------------
+# 9. 🧭 Origin of the Architecture (Read This Before You Change Anything)
+
+This architecture did **not** emerge from a traditional design-first or
+committee-driven software engineering process.
+
+It emerged from **pattern recognition and signal following**.
+
+Each major layer —  
+**Sentinel, DQSN, ADN, QWG, Guardian, EQC, WSQK** —  
+appeared when intuition, observation, and real-world signals indicated
+that a new form of protection or control was necessary.
+
+The system grew organically, one layer at a time, in response to:
+- emerging threat patterns
+- practical constraints
+- real usage behavior
+- observed gaps in existing wallet models
+
+Only *after* emergence were these layers formalized, documented,
+tested, and validated.
+
+Validation occurred through:
+- architectural coherence
+- adversarial reasoning
+- testing
+- and early real-world adoption signals
+
+New contributors should understand that **this is not conventional software engineering**.
+
+It is closer to:
+- systems discovery
+- adaptive security design
+- and coherence preservation
+
+Understanding this matters.
+
+Contributions that respect the *coherence* of the system strengthen it.  
+Contributions that force conventional patterns onto it may weaken it,
+even if they look correct in isolation.
+
+If you are contributing here, your role is not just to add features —
+it is to **preserve the integrity of a system that was discovered, not invented**.
+
+----------------------------------
 
 **Created by @DarekDGB --- Glory to God 🙏**
