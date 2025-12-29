@@ -1,10 +1,11 @@
 """
-HD Wallet (BIP32/BIP44) — hardened-only CKDpriv
+HD Wallet (BIP32/BIP44) — hardened-only CKDpriv + BIP44 helpers
 
 Implements:
 - DerivationPath parsing (m/44'/coin'/account'/change/index)
 - BIP32 master key derivation from seed
 - BIP32 hardened child private derivation (CKDpriv for i >= 2^31)
+- BIP44 hardened account helpers (m/44'/coin'/account')
 
 Still intentionally lightweight:
 - No public key math yet (no secp256k1 point multiplication)
@@ -157,8 +158,6 @@ def ckdpriv_hardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, child
       IL, IR = I[0:32], I[32:64]
       ki = (parse256(IL) + kpar) mod n
       ci = IR
-
-    Returns: (child_privkey_32, child_chaincode_32)
     """
     if len(parent_privkey_32) != 32:
         raise BIP32Error("Parent privkey must be 32 bytes.")
@@ -177,7 +176,6 @@ def ckdpriv_hardened(parent_privkey_32: bytes, parent_chaincode_32: bytes, child
 
     il_int = int.from_bytes(IL, "big")
     if il_int >= SECP256K1_N:
-        # Spec says: invalid, increment i and retry. We keep it strict for now.
         raise BIP32Error("Derived IL is invalid (>= n).")
 
     ki = (il_int + kpar) % SECP256K1_N
@@ -240,3 +238,37 @@ class HDNode:
                 raise BIP32Error("Non-hardened derivation not supported yet.")
             node = node.derive_hardened(seg.index)
         return node
+
+
+# ----------------------------
+# BIP44 hardened-only helpers
+# ----------------------------
+
+def derive_bip44_purpose(root: HDNode) -> HDNode:
+    """m/44'"""
+    return root.derive_hardened(44)
+
+
+def derive_bip44_coin(root: HDNode, coin_type: int) -> HDNode:
+    """m/44'/coin_type'"""
+    if coin_type < 0 or coin_type > 0x7FFFFFFF:
+        raise BIP32Error("coin_type must be 0..2^31-1.")
+    return derive_bip44_purpose(root).derive_hardened(coin_type)
+
+
+def derive_bip44_account(root: HDNode, coin_type: int, account: int = 0) -> HDNode:
+    """m/44'/coin_type'/account'"""
+    if account < 0 or account > 0x7FFFFFFF:
+        raise BIP32Error("account must be 0..2^31-1.")
+    return derive_bip44_coin(root, coin_type).derive_hardened(account)
+
+
+def bip44_account_path(coin_type: int, account: int = 0) -> DerivationPath:
+    """Convenience path object: m/44'/coin_type'/account'"""
+    return DerivationPath(
+        segments=(
+            DerivationIndex(44, hardened=True),
+            DerivationIndex(coin_type, hardened=True),
+            DerivationIndex(account, hardened=True),
+        )
+    )
