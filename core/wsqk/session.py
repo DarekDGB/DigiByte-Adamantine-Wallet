@@ -30,9 +30,13 @@ class WSQKSession:
     """
     WSQK session container.
 
+    - wallet_id optionally binds a session to a wallet instance (used by integration tests)
     - created_at / expires_at define the allowed time window
     - used_nonces tracks one-time nonces within this session (in-memory v1)
     """
+
+    wallet_id: Optional[str] = None
+
     ttl_seconds: int = 60
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: int = field(default_factory=lambda: int(time.time()))
@@ -50,10 +54,11 @@ class WSQKSession:
         if not self.is_active(now=now):
             raise WSQKSessionError("WSQK session is not active (expired or not yet valid).")
 
-    def issue_nonce(self) -> str:
+    def issue_nonce(self, now: Optional[int] = None) -> str:
         """
         Issue a new nonce for one-time execution.
         """
+        self.assert_active(now=now)
         return str(uuid.uuid4())
 
     def consume_nonce(self, nonce: str, now: Optional[int] = None) -> None:
@@ -61,6 +66,12 @@ class WSQKSession:
         Mark a nonce as used. Reject re-use.
         """
         self.assert_active(now=now)
-        if nonce in self.used_nonces:
+
+        n = (nonce or "").strip()
+        if not n:
+            raise WSQKSessionError("WSQK nonce is missing or empty.")
+
+        if n in self.used_nonces:
             raise WSQKSessionError("WSQK nonce replay detected (nonce already used).")
-        self.used_nonces.add(nonce)
+
+        self.used_nonces.add(n)
