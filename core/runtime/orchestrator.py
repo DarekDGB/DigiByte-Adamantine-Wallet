@@ -90,7 +90,7 @@ class RuntimeOrchestrator:
                 ttl_seconds=ttl_seconds,
             )
 
-            cap = issue_runtime_capability()
+            cap = issue_runtime_capability(scope_hash=bound.scope.scope_hash())
 
             exec_out = execute_with_scope(
                 scope=bound.scope,
@@ -103,4 +103,7 @@ class RuntimeOrchestrator:
         except (WSQKBindError, WSQKExecutionError) as e:
             raise ExecutionBlocked(f"WSQK execution blocked: {e}") from e
 
-        return OrchestratorResult(context_hash=decision.context_hash, result=exec_out.result)
+        return OrchestratorResult(
+            context_hash=decision.context_hash,
+            result=exec_out.result,
+        )
