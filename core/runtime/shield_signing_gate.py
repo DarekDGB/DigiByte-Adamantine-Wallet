@@ -1,21 +1,6 @@
 """
 Shield Signing Gate — Adamantine Wallet OS
 
-This module turns the Shield (5-layer defense + Adaptive Core) into an
-**authoritative runtime gate** for any private-key operation.
-
-Core invariant introduced here:
-
-    No signing-like execution may proceed unless:
-        EQC verdict is ALLOW
-        AND Shield decision is not BLOCK
-
-Notes:
-- This file is intentionally lightweight and test-friendly.
-- It does not implement real cryptography; it enforces decision flow.
-- The default Shield evaluator is a SAFE no-op allow, so wiring this in
-  will not break existing behaviour until you enable stricter layers.
-
 Author: DarekDGB
 License: MIT (see root LICENSE)
 """
@@ -24,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional
+import hashlib
+import json
 
 from core.eqc import EQCEngine
 from core.eqc.context import (
@@ -42,13 +29,6 @@ from core.shield_bridge_client import ShieldBridgeClient, ShieldDecision
 
 @dataclass(frozen=True)
 class SigningIntent:
-    """A minimal, auditable request to perform a signing-like action.
-
-    IMPORTANT:
-    - No secrets here (no private keys, no seed bytes).
-    - The intent is safe to log (or hash) for audit purposes.
-    """
-
     wallet_id: str
     account_id: str
     action: str = "sign"
@@ -58,28 +38,45 @@ class SigningIntent:
     to_address: Optional[str] = None
     amount_minor: Optional[int] = None
 
-    # Optional context metadata (kept simple for v0.2)
     device_type: str = "mobile"
     platform: str = "ios"
     network_type: str = "unknown"
     user_id: str = "user"
     extra: Dict[str, Any] = field(default_factory=dict)
 
+    def intent_hash(self) -> str:
+        """Deterministic hash of the intent for audit + binding across layers."""
+        payload = {
+            "wallet_id": self.wallet_id,
+            "account_id": self.account_id,
+            "action": self.action,
+            "asset": self.asset,
+            "amount": self.amount,
+            "recipient": self.recipient,
+            "to_address": self.to_address,
+            "amount_minor": self.amount_minor,
+            "device_type": self.device_type,
+            "platform": self.platform,
+            "network_type": self.network_type,
+            "user_id": self.user_id,
+            "extra": dict(self.extra),
+        }
+        blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
 
 class ShieldEvaluator:
-    """Interface-like callable wrapper for Shield evaluation."""
-
     def evaluate(self, intent: SigningIntent) -> ShieldDecision:  # pragma: no cover
         raise NotImplementedError
 
 
 class DefaultShieldEvaluator(ShieldEvaluator):
-    """Default evaluator that delegates to ShieldBridgeClient (safe allow)."""
-
     def __init__(self, client: Optional[ShieldBridgeClient] = None) -> None:
         self._client = client or ShieldBridgeClient()
 
     def evaluate(self, intent: SigningIntent) -> ShieldDecision:
+        ih = intent.intent_hash()
+
         if (
             intent.action.lower() in {"send", "send_dgb", "transfer"}
             and intent.to_address
@@ -90,9 +87,13 @@ class DefaultShieldEvaluator(ShieldEvaluator):
                 account_id=intent.account_id,
                 to_address=intent.to_address,
                 amount_minor=intent.amount_minor,
-                meta={"source": "shield_signing_gate"},
+                meta={
+                    "source": "shield_signing_gate",
+                    "intent_hash": ih,
+                },
             )
-        return ShieldDecision.allow(reason="shield_gate_default_allow")
+
+        return ShieldDecision.allow(reason=f"shield_gate_default_allow:{ih}")
 
 
 def _build_eqc_context(intent: SigningIntent) -> EQCContext:
@@ -128,13 +129,10 @@ def _build_eqc_context(intent: SigningIntent) -> EQCContext:
         pin_set=bool(intent.extra.get("pin_set", False)),
     )
 
-    return EQCContext(
-        action=action,
-        device=device,
-        network=network,
-        user=user,
-        extra=dict(intent.extra),
-    )
+    extra = dict(intent.extra)
+    extra["intent_hash"] = intent.intent_hash()
+
+    return EQCContext(action=action, device=device, network=network, user=user, extra=extra)
 
 
 def execute_signing_intent(
@@ -146,11 +144,9 @@ def execute_signing_intent(
     use_wsqk: bool = True,
     ttl_seconds: int = 120,
 ) -> Any:
-    """Execute a signing-like operation under EQC + Shield + (optional) WSQK."""
     eqc = eqc_engine or EQCEngine()
     shield_eval = shield or DefaultShieldEvaluator()
 
-    # 1) EQC must allow
     context = _build_eqc_context(intent)
     decision = eqc.decide(context)
 
@@ -162,14 +158,10 @@ def execute_signing_intent(
     if decision.verdict.type != VerdictType.ALLOW:
         raise ExecutionBlocked(f"EQC blocked signing intent: {decision.verdict.type}")
 
-    # 2) Shield must not block
     sdec = shield_eval.evaluate(intent)
     if getattr(sdec, "blocked", False):
-        raise ExecutionBlocked(
-            f"Shield blocked signing intent: {getattr(sdec, 'reason', '')}"
-        )
+        raise ExecutionBlocked(f"Shield blocked signing intent: {getattr(sdec, 'reason', '')}")
 
-    # 3) Execute
     if not use_wsqk:
         return executor(context)
 
@@ -180,7 +172,10 @@ def execute_signing_intent(
         ttl_seconds=ttl_seconds,
     )
 
-    cap = issue_runtime_capability(scope_hash=bound.scope.scope_hash())
+    cap = issue_runtime_capability(
+        scope_hash=bound.scope.scope_hash(),
+        ttl_seconds=ttl_seconds,
+    )
 
     out = execute_with_scope(
         scope=bound.scope,
