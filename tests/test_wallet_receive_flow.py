@@ -1,4 +1,4 @@
-from core.wallet.keys.hdnode import HDNode
+from core.wallet.keys.hd import HDNode
 from core.wallet.state import WalletState
 from core.wallet.wallet import Wallet
 
