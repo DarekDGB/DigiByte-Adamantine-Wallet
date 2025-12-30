@@ -17,6 +17,9 @@ class FakeScope:
     def assert_context(self, context_hash):
         return None
 
+    def scope_hash(self):
+        return "scope-A"
+
 
 class FakeContext:
     def context_hash(self):
@@ -36,13 +39,16 @@ def test_wsqk_execution_fails_without_runtime_capability():
 
 
 def test_wsqk_execution_succeeds_with_runtime_capability():
-    cap = issue_runtime_capability()
+    scope = FakeScope()
+    cap = issue_runtime_capability(scope_hash=scope.scope_hash())
+
     out = execute_with_scope(
-        scope=FakeScope(),
+        scope=scope,
         context=FakeContext(),
         wallet_id="wallet1",
         action="sign",
         executor=lambda ctx: "ok",
         capability=cap,
     )
+
     assert out.result == "ok"
