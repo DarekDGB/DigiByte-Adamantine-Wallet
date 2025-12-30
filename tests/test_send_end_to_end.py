@@ -12,6 +12,34 @@ from core.wallet.tx.serialize import (
     serialize_signed_tx_hex,
 )
 from core.wallet.tx.broadcast import FakeBroadcaster
+from core.wallet.tx.script import script_pubkey_p2pkh
+
+
+def _h160_from_p2pkh_address(addr: str) -> bytes:
+    """
+    Decode DigiByte P2PKH Base58Check address to HASH160 payload (20 bytes).
+    Works with whichever decode helper exists in core.wallet.address.
+    """
+    from core.wallet import address as addrmod
+
+    # Option A: base58check_decode(addr) -> bytes(version + payload)
+    if hasattr(addrmod, "base58check_decode"):
+        b = addrmod.base58check_decode(addr)
+        if len(b) < 21:
+            raise ValueError("decoded address too short")
+        return b[1:21]
+
+    # Option B: decode_base58check(addr) -> (version:int, payload:bytes)
+    if hasattr(addrmod, "decode_base58check"):
+        version, payload = addrmod.decode_base58check(addr)
+        if len(payload) != 20:
+            raise ValueError("unexpected payload length")
+        return payload
+
+    raise RuntimeError(
+        "No base58check decoder found in core.wallet.address "
+        "(expected base58check_decode or decode_base58check)"
+    )
 
 
 def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
@@ -33,17 +61,20 @@ def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
         state=state,
     )
 
-    # derive privkey for the funded input (receive index 0)
+    # privkey for funded input (receive index 0)
     node0 = acc.derive_receive_node(0)
     priv = bytes.fromhex(node0.private_key_hex)
 
     from core.wallet.keys.secp256k1 import pubkey_from_privkey
     pub = pubkey_from_privkey(priv, compressed=True)
 
-    # build scriptsig for input 0
+    # scriptSig for input 0
     scriptsig0 = build_p2pkh_scriptsig(unsigned, 0, priv, pub)
 
-    # build a signed transaction container
+    # Convert builder TxOutput(address,value) -> SignedOutput(script_pubkey,value)
+    out0_h160 = _h160_from_p2pkh_address(unsigned.outputs[0].address)
+    out1_h160 = _h160_from_p2pkh_address(unsigned.outputs[1].address)
+
     signed = SignedTransaction(
         version=1,
         inputs=[
@@ -55,14 +86,13 @@ def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
             )
         ],
         outputs=[
-            # builder outputs are address/value; convert into script_pubkey bytes
             SignedOutput(
                 value_sats=unsigned.outputs[0].value_sats,
-                script_pubkey=unsigned.outputs[0].script_pubkey,
+                script_pubkey=script_pubkey_p2pkh(out0_h160),
             ),
             SignedOutput(
                 value_sats=unsigned.outputs[1].value_sats,
-                script_pubkey=unsigned.outputs[1].script_pubkey,
+                script_pubkey=script_pubkey_p2pkh(out1_h160),
             ),
         ],
         locktime=0,
@@ -70,10 +100,9 @@ def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
 
     rawhex = serialize_signed_tx_hex(signed)
 
-    # sanity: looks like a raw tx
     assert isinstance(rawhex, str)
     assert len(rawhex) > 100
-    assert rawhex.startswith("01000000")  # version=1 little-endian
+    assert rawhex.startswith("01000000")
 
     # broadcast boundary
     b = FakeBroadcaster(accept=True, fake_txid="11" * 32)
