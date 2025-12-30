@@ -57,6 +57,21 @@ def execute_with_scope(
     if not capability or not getattr(capability, "token", None):
         raise WSQKExecutionError("WSQK execution denied: missing runtime capability")
 
+    # TTL + structural validity
+    try:
+        capability.assert_valid(now=now)
+    except Exception as e:
+        raise WSQKExecutionError(str(e)) from e
+
+    # Scope binding (anti-confused-deputy)
+    try:
+        expected = scope.scope_hash()
+    except Exception as e:
+        raise WSQKExecutionError(f"WSQK execution denied: scope hash unavailable: {e}") from e
+
+    if getattr(capability, "scope_hash", None) != expected:
+        raise WSQKExecutionError("WSQK execution denied: capability scope mismatch")
+
     try:
         scope.assert_active(now=now)
         scope.assert_wallet(wallet_id)
