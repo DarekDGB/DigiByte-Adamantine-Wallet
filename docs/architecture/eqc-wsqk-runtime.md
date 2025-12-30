@@ -1,46 +1,60 @@
 # Adamantine Wallet OS — EQC · WSQK · Runtime Architecture
 
-This document describes the **core security architecture** of Adamantine Wallet OS.
+This document defines the **core execution-security architecture** of
+Adamantine Wallet OS.
 
-It defines how **decisions**, **authority**, and **execution** are separated and
-enforced by design.
+It explains how **decision**, **authorization**, **authority**, and
+**execution** are strictly separated and enforced.
 
-This is an **OS-level model**, not a browser wallet model.
+This is an **OS-level security model**, not a browser wallet model.
 
 ---
 
 ## Core Principle
 
-> **EQC decides. WSQK executes. Runtime enforces.**
+> **EQC decides. Shield authorizes. WSQK executes. Runtime enforces.**
 
-No cryptographic operation, signing action, mint, or authorization may occur
-unless this flow is satisfied.
+No signing, minting, or sensitive execution may occur unless this
+sequence is satisfied **in order**.
 
-This rule is enforced in **code**, **tests**, and **architecture**.
+This rule is enforced by:
+- architecture
+- runtime gates
+- test-backed invariants
+
+There are **no bypass paths**.
 
 ---
 
-## High-Level Flow
+## High-Level Execution Flow
 
 ```
-[ Request ]
-     |
-     v
+[ Request / Intent ]
+        |
+        v
 [ EQC — Equilibrium Confirmation ]
-     |
-     |  (VerdictType.ALLOW only)
-     v
-[ WSQK — Wallet-Scoped Quantum Key ]
-     |
-     |  (Scoped · Context-bound · Single-use)
-     v
-[ Runtime Orchestrator ]
-     |
-     v
+        |
+        |  VerdictType.ALLOW only
+        v
+[ Shield Evaluation ]
+        |
+        |  Must not block
+        v
+[ WSQK Scope Binding ]
+        |
+        |  Wallet + Action + Context Hash
+        v
+[ Runtime Capability Issuance ]
+        |
+        |  Scope-bound authority token
+        v
+[ WSQK Guard (Nonce + Session) ]
+        |
+        v
 [ Execution ]
 ```
 
-There is **no bypass path**.
+If any stage fails, execution is **explicitly blocked**.
 
 ---
 
@@ -48,73 +62,122 @@ There is **no bypass path**.
 
 EQC is the **decision brain** of Adamantine Wallet OS.
 
-It:
+EQC:
 - evaluates an immutable execution context
 - runs deterministic classifiers
 - applies explicit policy rules
-- returns a deterministic verdict:
+- produces a deterministic verdict:
   - `ALLOW`
   - `DENY`
   - `STEP_UP`
 
-EQC:
-- has no side effects
-- does not sign
-- does not generate keys
-- does not execute actions
+EQC characteristics:
+- no side effects
+- no signing
+- no key material
+- no execution
 
-EQC produces:
-- a verdict
-- a `context_hash`
-- a signal bundle
+EQC outputs:
+- verdict
+- deterministic `context_hash`
+- signal bundle used by downstream layers
+
+EQC **must always run first**.
 
 ---
 
-## WSQK — Wallet-Scoped Quantum Key
+## Shield — Authorization Layer
 
-WSQK is the **execution authority model**.
+The Shield is the **authoritative authorization gate**.
 
-WSQK is **not** a static private key.
+Shield evaluation:
+- occurs **after EQC**
+- occurs **before WSQK**
+- is **not advisory**
+
+If Shield blocks, execution **must not proceed**, even if EQC allowed.
+
+Shield decisions are:
+- bound to a deterministic intent
+- evaluated synchronously
+- enforced by runtime gates
+
+There are no “soft” Shield failures.
+
+---
+
+## WSQK — Wallet-Scoped Quantum Key Model
+
+WSQK defines **how execution authority exists**.
+
+WSQK is **not a static private key**.
 
 Instead, WSQK authority is:
 
-- scoped to a wallet
+- scoped to a specific wallet
 - scoped to a specific action
 - bound to an EQC-approved `context_hash`
 - time-limited (TTL)
-- single-use (nonce enforced)
-- non-reusable across contexts
+- single-use when guarded
+- non-transferable across contexts
 
-WSQK cannot exist unless EQC has already returned `ALLOW`.
+WSQK **cannot exist** unless EQC has already returned `ALLOW`.
 
 ---
 
-## WSQK Guard (Single-Use Authority)
+## Runtime Capability (Execution Authority)
 
-WSQK execution is protected by:
+Execution under WSQK **requires a runtime capability**.
 
-- scope validation
-- session TTL
-- one-time nonce consumption (replay protection)
+Runtime capabilities:
+- are unforgeable tokens
+- are issued only by runtime gates
+- are never created by callers
+- are bound to a WSQK scope hash
+- may have finite lifetime
 
-Once a WSQK execution succeeds:
+Missing, malformed, expired, or mismatched capabilities
+**must block execution**.
+
+This prevents:
+- confused deputy attacks
+- scope reuse
+- privilege escalation
+
+---
+
+## WSQK Guard — Single-Use Execution
+
+WSQK execution is protected by a guard enforcing:
+
+- session validity
+- TTL enforcement
+- single-use nonce consumption (replay protection)
+
+Once execution succeeds:
 - the nonce is consumed
 - replay is impossible by construction
 
-This turns authority into **one-time permission**, not a reusable secret.
+Authority becomes **one-time permission**, not a reusable secret.
 
 ---
 
 ## Runtime Orchestrator
 
-The runtime orchestrator is the **enforcement layer**.
+The runtime orchestrator is the **enforcement spine**.
 
 It guarantees:
-- EQC is always evaluated first
-- WSQK cannot be reached without EQC approval
+- EQC is evaluated first
+- Shield is enforced
+- WSQK cannot be reached without approval
 - execution is blocked otherwise
 
-Even internal developers cannot “accidentally” bypass EQC or WSQK.
+This applies to:
+- external calls
+- internal calls
+- developer-written code paths
+
+Even trusted code **cannot bypass** these gates.
 
 ---
 
@@ -122,48 +185,58 @@ Even internal developers cannot “accidentally” bypass EQC or WSQK.
 
 Browser wallets and extensions:
 
-- run inside hostile execution environments
+- run inside hostile environments
 - rely on long-lived keys or seeds
-- cannot enforce OS-level invariants
-- cannot prevent bypass by design
+- cannot enforce execution invariants
+- cannot prevent architectural bypass
 
-Adamantine Wallet OS enforces security **architecturally**, not by convention.
-
----
-
-## Crypto Is an Implementation Detail
-
-Cryptography (including PQC) is intentionally **not hardcoded** here.
-
-Instead:
-- crypto is injected behind stable interfaces
-- architecture remains unchanged
-- contributors can implement:
-  - classical signing
-  - PQC KEM wrapping
-  - hardware enclave backends
-
-This allows development **without heavy toolchains**, including mobile-only workflows.
+Adamantine Wallet OS enforces security
+**by construction**, not by convention.
 
 ---
 
-## Design Philosophy
+## Cryptography Is an Implementation Detail
+
+Cryptography is intentionally abstracted.
+
+This architecture supports:
+- classical signing
+- PQC KEM wrapping
+- hardware-backed execution
+- future cryptographic upgrades
+
+Without changing:
+- EQC
+- Shield
+- WSQK
+- runtime invariants
+
+This allows development even on constrained environments
+(e.g. mobile-only workflows).
+
+---
+
+## Security Philosophy
 
 Security does not come from:
 - trust
 - reputation
+- UI prompts
 - extensions
 - static secrets
 
 Security comes from:
-- separation of concerns
 - explicit authority
 - context binding
+- separation of concerns
 - enforced execution flow
+- test-backed invariants
 
-Adamantine Wallet OS is built as a **security operating system**, not a wallet app.
+Adamantine Wallet OS is built as a
+**security operating system**, not a wallet app.
 
 ---
 
 **Author:** DarekDGB  
-**License:** MIT
+**License:** MIT  
+**Status:** Architecture Frozen
