@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from core.eqc.context import EQCContext
-from core.runtime.capabilities import RuntimeCapability, issue_runtime_capability
+from core.runtime.capabilities import RuntimeCapability
 from .scopes import WSQKScope
 
 
@@ -51,16 +51,11 @@ def execute_with_scope(
     """
     Enforce scope constraints, then execute.
 
-    This is the minimal WSQK "execution gate" that will later wrap real signing.
-
-    NOTE (transition):
-        Until all call-sites pass a runtime capability explicitly, WSQK will
-        self-issue a capability when missing to preserve existing flows/tests.
-        Once runtime gates are fully wired, we will flip this back to strict mode.
+    Invariant:
+        WSQK MUST NOT execute without a valid runtime capability.
     """
-    # Backward-compat: preserve legacy call-sites (guard/orchestrator/tests)
     if not capability or not getattr(capability, "token", None):
-        capability = issue_runtime_capability()
+        raise WSQKExecutionError("WSQK execution denied: missing runtime capability")
 
     try:
         scope.assert_active(now=now)
