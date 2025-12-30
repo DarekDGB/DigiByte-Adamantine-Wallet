@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core.wallet.tx.sighash import plan_sighash_all, SIGHASH_ALL
-from core.wallet.tx.signing import SigningError, sign_digest
+from core.wallet.tx.sighash import SIGHASH_ALL, plan_sighash_all
+from core.wallet.keys.secp256k1 import ecdsa_sign
 
 
 class ScriptSigError(ValueError):
@@ -10,12 +10,30 @@ class ScriptSigError(ValueError):
 
 def _push(data: bytes) -> bytes:
     """
-    Push raw bytes onto a script.
-    Supports data lengths up to 75 bytes (enough for sig + pubkey).
+    Minimal push for small elements.
+    Supports lengths up to 75 bytes (enough for DER sig + pubkey).
     """
     if len(data) > 75:
         raise ScriptSigError("pushdata too large")
     return bytes([len(data)]) + data
+
+
+def _der_int(x: int) -> bytes:
+    b = x.to_bytes((x.bit_length() + 7) // 8 or 1, "big")
+    # If highest bit set, prepend 0x00 to keep it positive
+    if b[0] & 0x80:
+        b = b"\x00" + b
+    return b
+
+
+def _der_encode_sig(r: int, s: int) -> bytes:
+    """
+    Minimal DER encoding for ECDSA signature (r,s).
+    """
+    rb = _der_int(r)
+    sb = _der_int(s)
+    seq = b"\x02" + bytes([len(rb)]) + rb + b"\x02" + bytes([len(sb)]) + sb
+    return b"\x30" + bytes([len(seq)]) + seq
 
 
 def build_p2pkh_scriptsig(
@@ -26,24 +44,22 @@ def build_p2pkh_scriptsig(
 ) -> bytes:
     """
     Build P2PKH scriptSig:
-      <sig + sighash> <pubkey>
+      <sig_der + sighash> <pubkey>
 
     NOTE: Uses plan_sighash_all() until raw tx serialization exists.
     """
     if len(privkey_32) != 32:
         raise ScriptSigError("privkey must be 32 bytes")
 
-    # 1) Compute digest (plan-level for now)
+    # 1) Digest (plan-level)
     digest = plan_sighash_all(unsigned_tx, input_index, pubkey)
 
-    # 2) Sign digest (DER)
-    try:
-        sig_der = sign_digest(privkey_32, digest)
-    except SigningError as e:
-        raise ScriptSigError(str(e)) from e
+    # 2) Sign (r,s) -> DER
+    r, s = ecdsa_sign(digest, privkey_32)
+    sig_der = _der_encode_sig(r, s)
 
-    # 3) Append sighash flag
+    # 3) Append sighash flag byte
     sig_with_type = sig_der + bytes([SIGHASH_ALL])
 
-    # 4) Build scriptSig
+    # 4) scriptSig pushes
     return _push(sig_with_type) + _push(pubkey)
