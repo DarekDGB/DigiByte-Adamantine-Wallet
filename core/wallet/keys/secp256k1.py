@@ -8,6 +8,7 @@ We implement only what we need first:
 - compressed/uncompressed public key encoding
 - parsing compressed/uncompressed pubkeys (for watch-only BIP32 public derivation)
 - tweak-add: (tweak*G) + PubKey
+- ECDSA sign/verify (deterministic nonce placeholder for CI)
 
 Reference curve: secp256k1
 y^2 = x^3 + 7 mod p
@@ -15,6 +16,7 @@ y^2 = x^3 + 7 mod p
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
@@ -208,3 +210,95 @@ def tweak_add_pubkey(parent_pubkey: bytes, tweak32: bytes, compressed: bool = Tr
         raise Secp256k1Error("tweak-add resulted in invalid point")
 
     return pubkey_from_point(child_pt, compressed=compressed)
+
+
+# ----------------------------
+# ECDSA (minimal, CI-safe)
+# ----------------------------
+
+def _hash_nonce(privkey32: bytes, msg32: bytes) -> int:
+    """
+    Deterministic nonce placeholder: k = SHA256(priv || msg) mod N.
+
+    NOTE: This is for CI-stable scaffolding.
+    Replace with RFC6979 later for production-quality determinism.
+    """
+    if len(privkey32) != 32 or len(msg32) != 32:
+        raise Secp256k1Error("privkey32 and msg32 must be 32 bytes")
+    h = hashlib.sha256(privkey32 + msg32).digest()
+    k = int.from_bytes(h, "big") % N
+    if k == 0:
+        k = 1
+    return k
+
+
+def _normalize_s(s: int) -> int:
+    # enforce low-S (standardness)
+    if s > N // 2:
+        return N - s
+    return s
+
+
+def ecdsa_sign(msg32: bytes, privkey32: bytes) -> tuple[int, int]:
+    """
+    ECDSA signature over a 32-byte digest.
+    Returns raw (r, s) integers.
+    """
+    if len(msg32) != 32:
+        raise Secp256k1Error("msg32 must be 32 bytes.")
+    if len(privkey32) != 32:
+        raise Secp256k1Error("privkey32 must be 32 bytes.")
+
+    d = int.from_bytes(privkey32, "big")
+    if d <= 0 or d >= N:
+        raise Secp256k1Error("Invalid private key scalar.")
+
+    z = int.from_bytes(msg32, "big")
+
+    k = _hash_nonce(privkey32, msg32)
+    R = scalar_mult(k, G)
+    if R.is_infinity or R.x is None:
+        raise Secp256k1Error("Bad nonce (infinity).")
+
+    r = R.x % N
+    if r == 0:
+        raise Secp256k1Error("Bad nonce (r=0).")
+
+    s = (_modinv(k, N) * (z + r * d)) % N
+    if s == 0:
+        raise Secp256k1Error("Bad signature (s=0).")
+
+    s = _normalize_s(s)
+    return (r, s)
+
+
+def ecdsa_verify(msg32: bytes, sig: tuple[int, int], pubkey: bytes) -> bool:
+    """
+    Verify raw (r, s) against compressed or uncompressed pubkey.
+    """
+    if len(msg32) != 32:
+        raise Secp256k1Error("msg32 must be 32 bytes.")
+
+    r, s = sig
+    if not (1 <= r < N and 1 <= s < N):
+        return False
+
+    z = int.from_bytes(msg32, "big")
+
+    try:
+        Q = parse_pubkey(pubkey)
+    except Secp256k1Error:
+        return False
+
+    w = _modinv(s, N)
+    u1 = (z * w) % N
+    u2 = (r * w) % N
+
+    P1 = scalar_mult(u1, G)
+    P2 = scalar_mult(u2, Q)
+    X = _point_add(P1, P2)
+
+    if X.is_infinity or X.x is None:
+        return False
+
+    return (X.x % N) == r
