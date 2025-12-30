@@ -53,16 +53,10 @@ def execute_guarded(
     """
     Enforce scope + session + nonce, then execute exactly once.
     """
-
     try:
-        # 1) Session must be active
         session.assert_active(now=now)
-
-        # 2) Nonce must be single-use
         session.consume_nonce(nonce, now=now)
 
-        # 3) Scope must match and be active (uses context.context_hash())
-        # Reuse existing executor validation to avoid duplicating rules
         exec_out: WSQKExecutionResult = _execute_with_scope_checked(
             scope=scope,
             context=context,
@@ -94,7 +88,7 @@ def _execute_with_scope_checked(
 ) -> WSQKExecutionResult:
     from .executor import execute_with_scope  # local import to keep dependencies tight
 
-    cap = issue_runtime_capability()
+    cap = issue_runtime_capability(scope_hash=scope.scope_hash())
 
     return execute_with_scope(
         scope=scope,
