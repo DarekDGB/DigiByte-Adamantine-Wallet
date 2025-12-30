@@ -34,6 +34,7 @@ from core.eqc.context import (
     UserContext,
 )
 from core.runtime.orchestrator import ExecutionBlocked
+from core.runtime.capabilities import issue_runtime_capability
 from core.wsqk.context_bind import bind_scope_from_eqc
 from core.wsqk.executor import execute_with_scope
 from core.shield_bridge_client import ShieldBridgeClient, ShieldDecision
@@ -185,11 +186,15 @@ def execute_signing_intent(
         action=intent.action,
         ttl_seconds=ttl_seconds,
     )
+
+    cap = issue_runtime_capability()
+
     out = execute_with_scope(
         scope=bound.scope,
         context=context,
         wallet_id=intent.wallet_id,
         action=intent.action,
         executor=executor,
+        capability=cap,
     )
     return out.result
