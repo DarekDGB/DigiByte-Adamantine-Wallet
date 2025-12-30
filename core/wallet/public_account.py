@@ -12,19 +12,21 @@ class PublicWalletAccount:
     """
     Watch-only wallet account.
 
-    Mirrors WalletAccount but uses PublicHDNode + public derivation.
-    Can derive addresses but cannot sign.
+    This mirrors WalletAccount but:
+    - uses PublicHDNode
+    - supports address derivation only
+    - cannot sign or access private keys
+
+    IMPORTANT:
+    root MUST already be at account level:
+    m/44'/coin_type'/account'
     """
     root: PublicHDNode
     coin_type: int = 20
     account: int = 0
 
     def _account_node(self) -> PublicHDNode:
-        # m/44'/coin_type'/account' cannot be derived from public-only
-        # So watch-only should start at xpub already at account level.
-        #
-        # For now we enforce: root.path == "m/44'/coin_type'/account'"
-        # and treat root as the account node.
+        # For watch-only, the root is already the account node
         return self.root
 
     def derive_receive_node(self, index: int) -> PublicHDNode:
