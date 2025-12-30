@@ -1,4 +1,6 @@
-from core.wsqk.executor import execute_with_scope
+import pytest
+
+from core.wsqk.executor import execute_with_scope, WSQKExecutionError
 from core.runtime.capabilities import issue_runtime_capability
 
 
@@ -21,16 +23,16 @@ class FakeContext:
         return "deadbeef"
 
 
-def test_wsqk_execution_succeeds_without_capability_for_legacy_call_sites():
-    out = execute_with_scope(
-        scope=FakeScope(),
-        context=FakeContext(),
-        wallet_id="wallet1",
-        action="sign",
-        executor=lambda ctx: "ok",
-        capability=None,
-    )
-    assert out.result == "ok"
+def test_wsqk_execution_fails_without_runtime_capability():
+    with pytest.raises(WSQKExecutionError):
+        execute_with_scope(
+            scope=FakeScope(),
+            context=FakeContext(),
+            wallet_id="wallet1",
+            action="sign",
+            executor=lambda ctx: "should_not_run",
+            capability=None,
+        )
 
 
 def test_wsqk_execution_succeeds_with_runtime_capability():
