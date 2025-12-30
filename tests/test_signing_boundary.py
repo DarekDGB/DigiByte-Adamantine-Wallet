@@ -12,12 +12,7 @@ from core.wallet.tx.signing import sign_transaction_p2pkh, SigningError
 
 
 class FakeSigner:
-    """
-    Deterministic signer for boundary testing.
-    This is NOT ECDSA. It only proves the architecture boundary.
-    """
     def sign(self, message: bytes, privkey32: bytes) -> bytes:
-        # Deterministic, unique-ish output
         return b"SIG|" + message[:24] + b"|" + privkey32[:8]
 
 
@@ -34,7 +29,6 @@ def test_private_wallet_can_sign_placeholder_inputs() -> None:
     acc = WalletAccount(root=root, coin_type=20, account=0)
     state = WalletState.default()
 
-    # Fund from known receive addresses
     a0 = acc.receive_address_at(0)
     a1 = acc.receive_address_at(1)
 
@@ -61,7 +55,7 @@ def test_private_wallet_can_sign_placeholder_inputs() -> None:
 def test_watch_only_cannot_sign() -> None:
     seed = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
 
-    # Private wallet (to create a watch-only account root at account level)
+    # Private wallet only used to obtain an account-level xpub-like root
     root_priv = HDNode.from_seed(seed)
     acc_priv = WalletAccount(root=root_priv, coin_type=20, account=0)
     acct_node_priv = acc_priv._account_node()
@@ -75,22 +69,20 @@ def test_watch_only_cannot_sign() -> None:
 
     state = WalletState.default()
 
-    # UTXO to a watch-only derived address
+    # UTXO sent to a watch-only derived address
     a0 = acc_watch.receive_address_at(0)
     utxos = [UTXO(txid="aa" * 32, vout=0, value_sats=5000, address=a0)]
 
-    # Build unsigned tx (builder uses WalletAccount, so for this test we build it manually)
-    # We can still reuse build_unsigned_tx by using the private account for change address,
-    # but signing must be attempted with watch-only and MUST fail.
+    # Build unsigned tx using private account (builder needs change address)
     unsigned = build_unsigned_tx(
         utxos=utxos,
         to_address="D" + "Y" * 25,
         amount_sats=3000,
         fee_sats=500,
-        account=acc_priv,   # only used for change address selection; not used for signing test
+        account=acc_priv,
         state=state,
     )
 
+    # Attempt signing using watch-only account -> MUST fail (no private keys)
     with pytest.raises(SigningError):
-        # Watch-only should fail: no private keys
-        sign_transaction_p2pkh(unsigned=unsigned, account=acc_priv, state=state, signer=FakeSigner())  # sanity
+        sign_transaction_p2pkh(unsigned=unsigned, account=acc_watch, state=state, signer=FakeSigner())
