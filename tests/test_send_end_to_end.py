@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import hashlib
+
 from core.wallet.keys.hd import HDNode
 from core.wallet.account import WalletAccount
 from core.wallet.state import WalletState
@@ -15,31 +19,47 @@ from core.wallet.tx.broadcast import FakeBroadcaster
 from core.wallet.tx.script import script_pubkey_p2pkh
 
 
+_B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def _b58decode(s: str) -> bytes:
+    n = 0
+    for ch in s:
+        n *= 58
+        idx = _B58_ALPHABET.find(ch)
+        if idx == -1:
+            raise ValueError("invalid base58 char")
+        n += idx
+
+    # Convert int to bytes
+    b = n.to_bytes((n.bit_length() + 7) // 8 or 1, "big")
+
+    # Leading zeros
+    pad = 0
+    for ch in s:
+        if ch == "1":
+            pad += 1
+        else:
+            break
+    return b"\x00" * pad + b
+
+
+def _base58check_decode(addr: str) -> bytes:
+    raw = _b58decode(addr)
+    if len(raw) < 5:
+        raise ValueError("base58check too short")
+    payload, cksum = raw[:-4], raw[-4:]
+    h = hashlib.sha256(hashlib.sha256(payload).digest()).digest()
+    if h[:4] != cksum:
+        raise ValueError("bad checksum")
+    return payload  # version + data
+
+
 def _h160_from_p2pkh_address(addr: str) -> bytes:
-    """
-    Decode DigiByte P2PKH Base58Check address to HASH160 payload (20 bytes).
-    Works with whichever decode helper exists in core.wallet.address.
-    """
-    from core.wallet import address as addrmod
-
-    # Option A: base58check_decode(addr) -> bytes(version + payload)
-    if hasattr(addrmod, "base58check_decode"):
-        b = addrmod.base58check_decode(addr)
-        if len(b) < 21:
-            raise ValueError("decoded address too short")
-        return b[1:21]
-
-    # Option B: decode_base58check(addr) -> (version:int, payload:bytes)
-    if hasattr(addrmod, "decode_base58check"):
-        version, payload = addrmod.decode_base58check(addr)
-        if len(payload) != 20:
-            raise ValueError("unexpected payload length")
-        return payload
-
-    raise RuntimeError(
-        "No base58check decoder found in core.wallet.address "
-        "(expected base58check_decode or decode_base58check)"
-    )
+    payload = _base58check_decode(addr)
+    if len(payload) != 21:
+        raise ValueError("unexpected payload length")
+    return payload[1:21]  # drop version, keep hash160
 
 
 def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
@@ -48,13 +68,16 @@ def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
     acc = WalletAccount(root=root, coin_type=20, account=0)
     state = WalletState.default()
 
-    # fund from receive index 0
+    # fund from receive index 0 (valid address)
     from_addr = acc.receive_address_at(0)
     utxos = [UTXO(txid="aa" * 32, vout=0, value_sats=5000, address=from_addr)]
 
+    # use a VALID destination address too (not fake)
+    to_addr = acc.receive_address_at(5)
+
     unsigned = build_unsigned_tx(
         utxos=utxos,
-        to_address="D" + "Z" * 25,   # dummy destination, format only
+        to_address=to_addr,
         amount_sats=3000,
         fee_sats=500,
         account=acc,
@@ -100,11 +123,12 @@ def test_end_to_end_send_flow_builds_rawtx_and_broadcasts() -> None:
 
     rawhex = serialize_signed_tx_hex(signed)
 
+    # sanity: looks like a raw tx
     assert isinstance(rawhex, str)
     assert len(rawhex) > 100
-    assert rawhex.startswith("01000000")
+    assert rawhex.startswith("01000000")  # version=1 little-endian
 
-    # broadcast boundary
+    # broadcast boundary (fake)
     b = FakeBroadcaster(accept=True, fake_txid="11" * 32)
     txid = b.broadcast_rawtx(rawhex)
     assert txid == "11" * 32
