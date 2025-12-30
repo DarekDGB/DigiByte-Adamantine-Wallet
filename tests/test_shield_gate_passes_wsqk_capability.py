@@ -1,7 +1,7 @@
 from core.runtime.shield_signing_gate import SigningIntent, execute_signing_intent
 
 
-def test_shield_gate_executes_successfully_with_wsqk_and_capability():
+def test_shield_gate_executes_when_eqc_allows_and_shield_allows():
     called = {"n": 0}
 
     def executor(_ctx):
