@@ -80,7 +80,6 @@ class DefaultShieldEvaluator(ShieldEvaluator):
         self._client = client or ShieldBridgeClient()
 
     def evaluate(self, intent: SigningIntent) -> ShieldDecision:
-        # Route to existing safe methods where possible.
         if (
             intent.action.lower() in {"send", "send_dgb", "transfer"}
             and intent.to_address
@@ -93,12 +92,10 @@ class DefaultShieldEvaluator(ShieldEvaluator):
                 amount_minor=intent.amount_minor,
                 meta={"source": "shield_signing_gate"},
             )
-        # Generic signing operation (default allow for now)
         return ShieldDecision.allow(reason="shield_gate_default_allow")
 
 
 def _build_eqc_context(intent: SigningIntent) -> EQCContext:
-    """Build an EQCContext from a SigningIntent."""
     action = ActionContext(
         action=intent.action,
         asset=intent.asset,
@@ -132,7 +129,11 @@ def _build_eqc_context(intent: SigningIntent) -> EQCContext:
     )
 
     return EQCContext(
-        action=action, device=device, network=network, user=user, extra=dict(intent.extra)
+        action=action,
+        device=device,
+        network=network,
+        user=user,
+        extra=dict(intent.extra),
     )
 
 
@@ -145,14 +146,7 @@ def execute_signing_intent(
     use_wsqk: bool = True,
     ttl_seconds: int = 120,
 ) -> Any:
-    """Execute a signing-like operation under EQC + Shield + (optional) WSQK.
-
-    Returns:
-        The executor's result.
-
-    Raises:
-        ExecutionBlocked: if EQC denies or Shield blocks.
-    """
+    """Execute a signing-like operation under EQC + Shield + (optional) WSQK."""
     eqc = eqc_engine or EQCEngine()
     shield_eval = shield or DefaultShieldEvaluator()
 
@@ -165,7 +159,6 @@ def execute_signing_intent(
     except Exception as e:  # pragma: no cover
         raise ExecutionBlocked(f"EQC verdict import failed: {e}") from e
 
-    # ✅ FIX: compare verdict.type, not the verdict object itself
     if decision.verdict.type != VerdictType.ALLOW:
         raise ExecutionBlocked(f"EQC blocked signing intent: {decision.verdict.type}")
 
@@ -176,7 +169,7 @@ def execute_signing_intent(
             f"Shield blocked signing intent: {getattr(sdec, 'reason', '')}"
         )
 
-    # 3) Execute (optionally under WSQK scope binding)
+    # 3) Execute
     if not use_wsqk:
         return executor(context)
 
@@ -187,7 +180,7 @@ def execute_signing_intent(
         ttl_seconds=ttl_seconds,
     )
 
-    cap = issue_runtime_capability()
+    cap = issue_runtime_capability(scope_hash=bound.scope.scope_hash())
 
     out = execute_with_scope(
         scope=bound.scope,
