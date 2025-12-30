@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from core.eqc.context import EQCContext
+from core.runtime.capabilities import RuntimeCapability
 from .scopes import WSQKScope
 
 
@@ -44,13 +45,20 @@ def execute_with_scope(
     wallet_id: str,
     action: str,
     executor: Callable[[EQCContext], Any],
+    capability: RuntimeCapability | None = None,
     now: Optional[int] = None,
 ) -> WSQKExecutionResult:
     """
     Enforce scope constraints, then execute.
 
     This is the minimal WSQK "execution gate" that will later wrap real signing.
+
+    Invariant:
+        WSQK MUST NOT execute without a valid runtime capability.
     """
+    if not capability or not getattr(capability, "token", None):
+        raise WSQKExecutionError("WSQK execution denied: missing runtime capability")
+
     try:
         scope.assert_active(now=now)
         scope.assert_wallet(wallet_id)
