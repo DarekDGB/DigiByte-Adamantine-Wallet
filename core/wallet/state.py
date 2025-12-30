@@ -36,6 +36,13 @@ class WalletState:
     change_index: int = 0
     gap_limit: int = 20
 
+    @classmethod
+    def default(cls) -> "WalletState":
+        """
+        Canonical default state (used by sync/tests/bootstrap).
+        """
+        return cls()
+
     def __post_init__(self) -> None:
         if self.network not in ("mainnet", "testnet"):
             raise WalletStateError("Invalid network.")
