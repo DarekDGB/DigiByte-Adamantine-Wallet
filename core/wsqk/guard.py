@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from core.eqc.context import EQCContext
+from core.runtime.capabilities import issue_runtime_capability
 from .scopes import WSQKScope
 from .session import WSQKSession, WSQKSessionError
 from .executor import WSQKExecutionError, WSQKExecutionResult
@@ -93,11 +94,14 @@ def _execute_with_scope_checked(
 ) -> WSQKExecutionResult:
     from .executor import execute_with_scope  # local import to keep dependencies tight
 
+    cap = issue_runtime_capability()
+
     return execute_with_scope(
         scope=scope,
         context=context,
         wallet_id=wallet_id,
         action=action,
         executor=executor,
+        capability=cap,
         now=now,
     )
