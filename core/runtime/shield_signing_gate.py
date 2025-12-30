@@ -160,14 +160,14 @@ def execute_signing_intent(
     context = _build_eqc_context(intent)
     decision = eqc.decide(context)
 
-    # Import VerdictType safely (tests rely on core.eqc.verdicts)
     try:
         from core.eqc.verdicts import VerdictType
     except Exception as e:  # pragma: no cover
         raise ExecutionBlocked(f"EQC verdict import failed: {e}") from e
 
-    if decision.verdict != VerdictType.ALLOW:
-        raise ExecutionBlocked(f"EQC blocked signing intent: {decision.verdict}")
+    # ✅ FIX: compare verdict.type, not the verdict object itself
+    if decision.verdict.type != VerdictType.ALLOW:
+        raise ExecutionBlocked(f"EQC blocked signing intent: {decision.verdict.type}")
 
     # 2) Shield must not block
     sdec = shield_eval.evaluate(intent)
