@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.wallet.bridge import address_from_pubkey
+from core.wallet.address import p2pkh_from_pubkey
 from core.wallet.keys.public_hdnode import PublicHDNode
 from core.wallet.keys.public_derive import derive_child_public
 
@@ -12,10 +12,10 @@ class PublicWalletAccount:
     """
     Watch-only wallet account.
 
-    This mirrors WalletAccount but:
-    - uses PublicHDNode
-    - supports address derivation only
-    - cannot sign or access private keys
+    Mirrors WalletAccount but:
+    - uses PublicHDNode + public derivation
+    - can derive receive/change addresses
+    - cannot sign
 
     IMPORTANT:
     root MUST already be at account level:
@@ -26,7 +26,6 @@ class PublicWalletAccount:
     account: int = 0
 
     def _account_node(self) -> PublicHDNode:
-        # For watch-only, the root is already the account node
         return self.root
 
     def derive_receive_node(self, index: int) -> PublicHDNode:
@@ -41,8 +40,8 @@ class PublicWalletAccount:
 
     def receive_address_at(self, index: int) -> str:
         node = self.derive_receive_node(index)
-        return address_from_pubkey(node.public_key)
+        return p2pkh_from_pubkey(node.public_key)
 
     def change_address_at(self, index: int) -> str:
         node = self.derive_change_node(index)
-        return address_from_pubkey(node.public_key)
+        return p2pkh_from_pubkey(node.public_key)
