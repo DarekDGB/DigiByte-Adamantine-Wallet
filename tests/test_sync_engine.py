@@ -1,7 +1,10 @@
-from core.wallet.keys.hdnode import HDNode
 from core.wallet.account import WalletAccount
 from core.wallet.state import WalletState
 from core.wallet.sync import sync_account, UTXO
+
+# IMPORTANT:
+# WalletAccount expects the derivation-capable HDNode from core.wallet.keys.hd
+from core.wallet.keys.hd import HDNode
 
 
 class FakeSyncProvider:
@@ -29,8 +32,8 @@ def test_sync_account_collects_balance_and_utxos():
     provider = FakeSyncProvider(
         used={a0, a1},
         utxos_by_addr={
-            a0: [UTXO(txid="aa"*32, vout=0, value_sats=1000, address=a0)],
-            a1: [UTXO(txid="bb"*32, vout=1, value_sats=2000, address=a1)],
+            a0: [UTXO(txid="aa" * 32, vout=0, value_sats=1000, address=a0)],
+            a1: [UTXO(txid="bb" * 32, vout=1, value_sats=2000, address=a1)],
         },
     )
 
