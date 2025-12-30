@@ -1,8 +1,13 @@
 """
 HDNode: normalized container for derived key material.
 
-This is a *data object* only.
-No derivation logic here.
+This is primarily a *data object*.
+We keep it lightweight and deterministic.
+
+NOTE:
+- Derivation logic lives elsewhere (core.wallet.keys.hd).
+- We expose a small convenience constructor (from_seed) to keep the
+  public API stable and tests/simple callers ergonomic.
 """
 
 from __future__ import annotations
@@ -21,8 +26,8 @@ class HDNode:
     private_key: Optional[bytes]      # 32 bytes or None (watch-only later)
 
     # Metadata
-    depth: int = 0                   # 0..255
-    child_num: int = 0               # 0..2^32-1
+    depth: int = 0                    # 0..255
+    child_num: int = 0                # 0..2^32-1
     parent_fingerprint: bytes = b"\x00\x00\x00\x00"  # 4 bytes
 
     # Optional path string for debugging/docs (not used in crypto)
@@ -39,6 +44,22 @@ class HDNode:
             raise ValueError("child_num must be 0..2^32-1")
         if len(self.parent_fingerprint) != 4:
             raise ValueError("parent_fingerprint must be 4 bytes")
+
+    @classmethod
+    def from_seed(cls, seed: bytes) -> "HDNode":
+        """
+        Convenience constructor.
+
+        Keeps HDNode ergonomic while keeping derivation logic in core.wallet.keys.hd.
+        """
+        # Lazy import avoids circular dependencies and keeps this module "data-first".
+        from core.wallet.keys.hd import master_key_from_seed
+
+        node = master_key_from_seed(seed)
+        if not isinstance(node, cls):
+            # If the underlying function ever changes return type, fail loudly.
+            raise TypeError("master_key_from_seed() did not return an HDNode")
+        return node
 
     def pubkey(self, compressed: bool = True) -> bytes:
         if self.private_key is None:
