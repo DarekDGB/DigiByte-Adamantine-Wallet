@@ -1,23 +1,24 @@
 import pytest
 
-from core.wallet.keys.hd import DerivationPath
 from core.wallet.bridge import BridgeError, address_from_node
 
 
-def test_bridge_address_from_node_starts_with_D():
-    seed = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
-    path = DerivationPath.parse("m/44'/20'/0'/0/0")
+class DummyNode:
+    def __init__(self, private_key: bytes | None):
+        self.private_key = private_key
 
-    node = path.derive_from_seed(seed)
+
+def test_bridge_address_from_node_known_vector_privkey_1():
+    # Private key = 1 (32 bytes big-endian)
+    node = DummyNode(b"\x00" * 31 + b"\x01")
+
     addr = address_from_node(node)
 
-    assert addr.startswith("D")
-    assert 26 <= len(addr) <= 36
+    # Deterministic DigiByte P2PKH result for privkey=1 (compressed pubkey)
+    assert addr == "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE"
 
 
 def test_bridge_requires_private_key():
-    class Dummy:
-        private_key = None
-
+    node = DummyNode(None)
     with pytest.raises(BridgeError):
-        address_from_node(Dummy())
+        address_from_node(node)
