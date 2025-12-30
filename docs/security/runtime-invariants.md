@@ -42,7 +42,8 @@ No execution path may bypass this sequence.
 
 - WSQK execution **must not occur** without a valid runtime capability.
 - Missing, malformed, or invalid capabilities **block execution**.
-- Capabilities are issued only by runtime gates, never by callers.
+- Capabilities are issued **only by runtime gates**, never by callers.
+- WSQK executors **must explicitly require** a capability parameter.
 
 ---
 
@@ -50,15 +51,18 @@ No execution path may bypass this sequence.
 
 - Every runtime capability is bound to a specific WSQK scope hash.
 - A capability **cannot be reused** for a different scope.
-- Scope mismatch **blocks execution** (anti-confused-deputy protection).
+- Scope mismatch **blocks execution** (anti–confused-deputy protection).
 
 ---
 
-## Invariant 5 — Capability Has Finite Lifetime
+## Invariant 5 — Capability Has Finite Authority
 
-- Runtime capabilities may have a TTL.
-- Expired capabilities **must be rejected**.
-- Long-lived or unlimited authority is explicitly forbidden.
+- Runtime capabilities are:
+  - Short-lived
+  - Single-purpose
+  - Non-transferrable
+- Long-lived, ambient, or unlimited authority is **explicitly forbidden**.
+- Capability reuse outside its intended execution path **must fail**.
 
 ---
 
@@ -78,6 +82,7 @@ No execution path may bypass this sequence.
 - WSQK guarded execution supports nonce-based replay prevention.
 - Nonces are single-use.
 - Reuse of a nonce **must block execution**.
+- Replay protection is enforced **before** execution occurs.
 
 ---
 
@@ -95,7 +100,7 @@ Failure must be **explicit and loud**.
 
 - Every invariant above is enforced by CI tests.
 - Any change that weakens an invariant **must break tests**.
-- Green CI implies invariant preservation, not feature correctness alone.
+- Green CI implies **invariant preservation**, not feature correctness alone.
 
 ---
 
