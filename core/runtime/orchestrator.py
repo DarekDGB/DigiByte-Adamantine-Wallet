@@ -24,6 +24,8 @@ from core.eqc import (
     VerdictType,
 )
 
+from core.runtime.capabilities import issue_runtime_capability
+
 # WSQK is optional for now (scaffold integration)
 from core.wsqk import (
     bind_scope_from_eqc,
@@ -87,12 +89,16 @@ class RuntimeOrchestrator:
                 action=action,
                 ttl_seconds=ttl_seconds,
             )
+
+            cap = issue_runtime_capability()
+
             exec_out = execute_with_scope(
                 scope=bound.scope,
                 context=context,
                 wallet_id=wallet_id,
                 action=action,
                 executor=executor,
+                capability=cap,
             )
         except (WSQKBindError, WSQKExecutionError) as e:
             raise ExecutionBlocked(f"WSQK execution blocked: {e}") from e
