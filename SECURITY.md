@@ -20,6 +20,23 @@ a **5-layer shield and Adaptive Core**. The project explicitly avoids:
 
 Security is enforced by **architectural invariants**, not assumptions.
 
+### Signing Gate Enforcement (Locked)
+
+All signing and execution in Adamantine Wallet OS is enforced through a single
+runtime signing gate:
+
+**EQC → Shield → WSQK → Runtime**
+
+There is no supported direct signing path.
+
+This invariant is:
+- enforced in code
+- covered by non-bypassable regression tests
+- documented as part of the core API contract
+
+Any design or change that bypasses this gate is considered
+**out of scope by definition** and invalid by architecture.
+
 For a clear, testable definition of attack classes that are **structurally blocked**
 (including Trust Wallet–style extension and analytics-trojan attacks), see:
 
