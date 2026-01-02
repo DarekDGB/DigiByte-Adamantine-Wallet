@@ -483,6 +483,14 @@ The architecture focuses on:
 - Safe failure behavior under uncertainty or offline conditions  
 
 📐 **[Architecture Overview](docs/architecture/ARCHITECTURE.md)**  
+## 🔒 Public API Index (Locked)
+
+- `docs/api/API_OVERVIEW.md`
+- `docs/api/WALLET_ENGINE_API.md`
+- `docs/api/SYNC_API.md`
+- `docs/api/TX_API.md`
+- `docs/api/EQC_WSQK_API.md`
+
 
 ---
 
