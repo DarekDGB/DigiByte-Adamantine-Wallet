@@ -141,9 +141,25 @@ def execute_signing_intent(
     executor: Callable[[EQCContext], Any],
     eqc_engine: Optional[EQCEngine] = None,
     shield: Optional[ShieldEvaluator] = None,
+    # Phase 11 lock: Watch-only must be blocked before EQC/Shield/WSQK.
+    # Injected as a callable so this module stays pure + testable.
+    is_watch_only: Optional[Callable[[str, str], bool]] = None,
     use_wsqk: bool = True,
     ttl_seconds: int = 120,
 ) -> Any:
+    """
+    THE signing gate entrypoint.
+
+    Enforced order:
+      0) Watch-only block (fast fail)
+      1) EQC must ALLOW
+      2) Shield must ALLOW
+      3) WSQK executes (if enabled) otherwise executor runs directly
+    """
+    # 0) Watch-only hard block
+    if is_watch_only is not None and is_watch_only(intent.wallet_id, intent.account_id):
+        raise ExecutionBlocked("watch-only account: signing is not permitted")
+
     eqc = eqc_engine or EQCEngine()
     shield_eval = shield or DefaultShieldEvaluator()
 
@@ -186,3 +202,7 @@ def execute_signing_intent(
         capability=cap,
     )
     return out.result
+
+
+# Phase 11 lock: make the "one public door" obvious to outsiders.
+__all__ = ["SigningIntent", "execute_signing_intent"]
