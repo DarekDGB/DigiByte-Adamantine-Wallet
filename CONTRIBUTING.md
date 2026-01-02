@@ -1,177 +1,187 @@
 # Contributing to DigiByte Adamantine Wallet OS
 
 **Adamantine Wallet OS** is not a traditional wallet.  
-It is a **full DigiByte Wallet OS**, architected as a modular, multi-client, multi-layer system integrating:
+It is a **full DigiByte Wallet Operating System**, architected as a modular, multi-client, multi-layer system integrating:
 
 - DigiAssets v3  
 - DigiDollar minting  
 - Q-ID (PQC identity)  
 - Enigmatic Layer-0 messenger  
-- Guardian Wallet user-protection layer  
+- Guardian Wallet (user-protection layer)  
 - Quantum Wallet Guard (QWG)  
+- **EQC (Equilibrium Confirmation)** — deterministic decision layer  
+- **WSQK (Wallet-Scoped Quantum Key)** — scoped execution authority  
 - Shield Bridge (Sentinel, DQSN, ADN, Adaptive Core)  
 - Node & DigiMobile integration  
 - iOS, Android, and Web client code  
-- Wallet engine, UTXO logic, parsing, builders, risk engine
+- Wallet engine, UTXO logic, parsing, builders, risk engine  
 
-This repository contains critical architecture for DigiByte’s long-term upgrade path.  
+This repository contains **core security and architecture** for DigiByte’s long-term upgrade path.  
 Because of this, **contributions must be extremely disciplined**.
+
+Adamantine enforces a non-negotiable invariant:
+
+> **EQC decides. WSQK executes. Runtime enforces.**
+
+Any contribution that weakens, bypasses, or obscures this invariant will be rejected.
 
 ---
 
 ## ✅ What Contributions ARE Welcome
 
 ### ✔️ 1. Client Improvements (Android / iOS / Web)
-- better UI documentation  
-- safer flows for send/receive  
-- structure improvements  
-- performance optimizations  
-- non-breaking architectural enhancements  
+- UI documentation and UX improvements  
+- Safer send/receive flows  
+- Performance optimizations  
+- Non-breaking architectural enhancements  
 
 ### ✔️ 2. Wallet Engine & UTXO Logic
-- improvements to `balance.py`, `utxo_manager.py`, `wallet_state.py`  
-- safer transaction builders  
-- fee estimator refinements  
-- extended test coverage  
+- Improvements to wallet state, balance tracking, and UTXO management  
+- Safer transaction builders  
+- Fee estimation refinements  
+- Expanded test coverage  
 
 ### ✔️ 3. DigiAssets v3 & DigiDollar
-- parser enhancements  
-- metadata validation  
-- safe minting logic  
-- better state management  
+- Parser enhancements  
+- Metadata validation  
+- Safe minting logic  
+- Deterministic state management  
 
 ### ✔️ 4. Shield Integration
-- expansions to `shield_bridge`  
-- safer node-health interpretation  
-- runtime guard improvements  
-- hardened risk-response routing  
+- Shield bridge extensions  
+- Node-health interpretation improvements  
+- Runtime guard hardening  
+- Risk-response routing  
 
-### ✔️ 5. Guardian Wallet & QWG Bridges
-- clearer advice messages  
-- improved rule mappings  
+### ✔️ 5. Guardian Wallet, QWG, EQC & WSQK Bridges
+- Clearer user-facing warnings  
+- Improved rule mappings  
 - UX-safe escalation logic  
+- Explicit preservation of EQC/WSQK execution flow  
 
 ### ✔️ 6. Documentation
-- architecture diagrams  
-- step-by-step flows  
-- clarification of module responsibilities  
-- test examples  
+- Architecture diagrams  
+- Step-by-step flow explanations  
+- Module responsibility clarification  
+- Test examples  
 
 ### ✔️ 7. Test Suite Expansion
-- new wallet engine tests  
-- node manager simulations  
-- DigiAssets edge-case tests  
-- shield bridge integration tests  
-- regression prevention  
+- Wallet engine tests  
+- Node manager simulations  
+- DigiAssets edge cases  
+- Shield and signing-gate integration tests  
+- Regression prevention  
 
 ---
 
 ## ❌ What Will NOT Be Accepted
 
-### 🚫 1. Any Attempt to Remove or Rewrite Core Architecture
-The modular layout and each folder’s purpose is **non-negotiable**:
+### 🚫 1. Core Architecture Changes
+The repository structure is **non-negotiable**:
 
 ```
-clients/  
-core/  
-modules/  
-docs/  
-config/  
-tests/  
+clients/
+core/
+modules/
+docs/
+config/
+tests/
 ```
 
 No flattening, merging, or repurposing without architectural approval.
 
----
+### 🚫 2. Mixing Responsibilities
+Forbidden examples include:
+- UI logic inside the wallet engine  
+- Shield, EQC, or WSQK logic inside client code  
+- Guardian/QWG logic embedded in network modules  
+- DigiAssets parsing outside its designated module  
 
-### 🚫 2. Mixing Layers or Responsibilities  
-**Examples of forbidden changes:**
+### 🚫 3. EQC / WSQK Bypass or Weakening
+Any code path that:
+- signs without EQC approval  
+- executes without WSQK authority  
+- shortcuts runtime enforcement  
 
-- putting UI logic inside the wallet engine  
-- placing shield logic inside client code  
-- embedding Guardian or QWG logic into network modules  
-- moving DigiAssets parsing into unrelated modules  
+will be rejected immediately.
 
-Adamantine follows strict separation principles.
-
----
-
-### 🚫 3. Consensus or Node Logic
-Adamantine Wallet OS:
-
+### 🚫 4. Consensus or Node Rule Changes
+Adamantine:
 - does **NOT** modify consensus  
-- does **NOT** act as a validator  
-- does **NOT** influence node rules  
+- does **NOT** validate blocks  
+- does **NOT** alter node rules  
 
-Any PR trying to do this is rejected instantly.
+### 🚫 5. Black-Box AI
+All logic must be deterministic and auditable.  
+No opaque ML or neural networks.
 
----
+### 🚫 6. Breaking Cross-Client Parity
+Android, iOS, and Web must behave identically.
 
-### 🚫 4. Replacing Explainable Logic With Black-Box AI
-Adamantine uses **deterministic, auditable logic**.
-
-No neural networks.  
-No black-box ML.  
-No opaque scoring systems.
-
----
-
-### 🚫 5. Breaking Cross-Client Behaviour
-Android, iOS, and Web must stay aligned.
-
-Any change that breaks parity is rejected.
-
----
-
-### 🚫 6. Removing Safety Layers
-The following must never be weakened:
-
-- Guardian Wallet  
-- QWG  
-- Shield Bridge  
-- Risk Engine  
-- Node Health Logic  
-
-These are mandatory components.
+### 🚫 7. Removing Safety Layers
+Guardian Wallet, QWG, EQC, WSQK, Shield Bridge, Risk Engine, and Node Health logic are mandatory.
 
 ---
 
 ## 🧱 Design Principles
 
-1. **Security First** — Adamantine protects users by default.  
-2. **Modularity** — every function belongs in the correct module.  
-3. **Cross-Client Consistency** — behaviour must match across Android/iOS/Web.  
-4. **Explainability** — every defence decision must be understandable.  
-5. **Determinism** — same inputs → same outputs.  
-6. **Upgrade-Safe** — DigiAssets v3, Q-ID, PQC, DigiDollar must remain future-proof.  
-7. **Interoperability** — integrates cleanly with Sentinel, DQSN, ADN, QWG, Guardian, Adaptive Core.  
+1. **Security First** — user protection is the default  
+2. **Modularity** — every function belongs in the correct layer  
+3. **Cross-Client Consistency** — identical behavior across platforms  
+4. **Explainability** — every decision must be auditable  
+5. **Determinism** — same inputs → same outputs  
+6. **Upgrade-Safe Design** — PQC, DigiAssets v3, DigiDollar ready  
+7. **Interoperability** — integrates cleanly with Shield & Guardian systems  
 
 ---
 
-## 🔄 Pull Request Requirements
+## 🚀 Getting Started
 
-Every PR **must include**:
+### First Time Contributors
+1. Read `docs/RUNTIME_INVARIANTS.md`  
+2. Read `docs/api/API_OVERVIEW.md`  
+3. Pick an issue labeled **good first issue**  
+4. Run `pytest` locally and ensure CI passes  
+5. Create a feature branch  
+6. Submit a PR with tests  
 
-- a clear description  
-- the motivation for the change  
-- documentation updates if needed  
-- passing test suite (`tests/`)  
-- verification that no client behaviour breaks  
-- confirmation that no safety or shield logic is removed  
+### New to EQC / WSQK
+- Start with `docs/EQC_WSQK_API.md`  
+- Review `tests/test_shield_signing_gate.py`  
+- Understand the invariant **before writing code**  
 
-Architect (@DarekDGB) approves **direction**.  
-Developers approve **technical correctness**.
+### Building a Client
+- Reference `docs/WALLET_ENGINE_API.md`  
+- Never import from `core/shield/*`, `core/eqc/*`, or `core/wsqk/*` directly  
+- Only call execution through approved intent APIs  
+- Test against watch-only mode first  
+
+---
+
+## 🔄 Code Review & Approval Process
+
+1. **Automated checks (required)**
+   - CI green on all platforms  
+   - Test coverage maintained  
+   - Deterministic behavior preserved  
+
+2. **Architectural review** (**@DarekDGB**)
+   - EQC/WSQK invariants intact  
+   - No responsibility mixing  
+   - Deterministic and auditable  
+
+3. **Merge**
+   - Approval + CI green required  
+   - Squash or rebase (clean history)  
 
 ---
 
 ## 🧪 Testing Expectations
 
-Contributors must:
-
-- add tests for any new module  
-- never reduce test coverage  
-- test wallet flows end-to-end when changed  
-- test shield integration when relevant  
+- New features require tests  
+- Test coverage must not decrease  
+- End-to-end wallet flows must remain green  
+- Signing, state, or EQC changes must include invariant tests  
 
 CI must stay green.
 
@@ -181,4 +191,4 @@ CI must stay green.
 
 By contributing, you agree your work is licensed under the MIT License.
 
-© 2025 **DarekDGB**
+© 2026 **DarekDGB**
