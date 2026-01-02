@@ -6,6 +6,9 @@ from core.runtime.shield_signing_gate import (
 )
 from core.runtime.orchestrator import ExecutionBlocked
 
+from core.storage.memory_store import MemoryWalletStorage
+from core.wallet.account_store import AccountStore, AccountState
+
 
 class DummyVerdict:
     def __init__(self, verdict_type):
@@ -28,16 +31,55 @@ def make_intent():
     )
 
 
-def test_watch_only_blocks_signing(monkeypatch):
+class DummyEQC:
+    def __init__(self, verdict_type: str):
+        self._verdict_type = verdict_type
+
+    def decide(self, context):
+        return DummyDecision(self._verdict_type)
+
+
+def test_watch_only_blocks_via_account_store():
+    """
+    Proves persisted watch-only accounts block signing
+    before EQC / Shield / WSQK.
+    """
+    storage = MemoryWalletStorage()
+    account_store = AccountStore(storage)
+
+    # Persist watch-only account
+    account_store.save(
+        AccountState(
+            wallet_id="wallet-1",
+            account_id="account-1",
+            index=0,
+            watch_only=True,
+        )
+    )
+
+    intent = make_intent()
+
+    with pytest.raises(ExecutionBlocked) as e:
+        execute_signing_intent(
+            intent=intent,
+            executor=lambda ctx: {"ok": True},
+            eqc_engine=DummyEQC("ALLOW"),
+            account_store=account_store,
+            use_wsqk=False,  # keep test minimal
+        )
+
+    assert "watch-only" in str(e.value)
+
+
+def test_watch_only_blocks_signing_via_override_callable():
+    """
+    Proves the injected watch-only callable still blocks (override path).
+    """
     intent = make_intent()
     wsqk_called = {"count": 0}
 
     def is_watch_only(wallet_id, account_id):
         return True
-
-    class DummyEQC:
-        def decide(self, context):
-            return DummyDecision("ALLOW")
 
     def dummy_executor(context):
         wsqk_called["count"] += 1
@@ -47,7 +89,7 @@ def test_watch_only_blocks_signing(monkeypatch):
         execute_signing_intent(
             intent=intent,
             executor=dummy_executor,
-            eqc_engine=DummyEQC(),
+            eqc_engine=DummyEQC("ALLOW"),
             is_watch_only=is_watch_only,
         )
 
@@ -61,10 +103,6 @@ def test_eqc_blocks_before_signing():
     def is_watch_only(wallet_id, account_id):
         return False
 
-    class DummyEQC:
-        def decide(self, context):
-            return DummyDecision("DENY")
-
     def dummy_executor(context):
         wsqk_called["count"] += 1
         return {"signed": True}
@@ -73,23 +111,19 @@ def test_eqc_blocks_before_signing():
         execute_signing_intent(
             intent=intent,
             executor=dummy_executor,
-            eqc_engine=DummyEQC(),
+            eqc_engine=DummyEQC("DENY"),
             is_watch_only=is_watch_only,
         )
 
     assert wsqk_called["count"] == 0
 
 
-def test_shield_blocks_before_wsqk(monkeypatch):
+def test_shield_blocks_before_wsqk():
     intent = make_intent()
     wsqk_called = {"count": 0}
 
     def is_watch_only(wallet_id, account_id):
         return False
-
-    class DummyEQC:
-        def decide(self, context):
-            return DummyDecision("ALLOW")
 
     class DummyShield:
         def evaluate(self, intent):
@@ -106,7 +140,7 @@ def test_shield_blocks_before_wsqk(monkeypatch):
         execute_signing_intent(
             intent=intent,
             executor=dummy_executor,
-            eqc_engine=DummyEQC(),
+            eqc_engine=DummyEQC("ALLOW"),
             shield=DummyShield(),
             is_watch_only=is_watch_only,
         )
