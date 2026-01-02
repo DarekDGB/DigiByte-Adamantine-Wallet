@@ -26,6 +26,9 @@ from core.wsqk.context_bind import bind_scope_from_eqc
 from core.wsqk.executor import execute_with_scope
 from core.shield_bridge_client import ShieldBridgeClient, ShieldDecision
 
+# NEW: persisted account source (optional)
+from core.wallet.account_store import AccountStore
+
 
 @dataclass(frozen=True)
 class SigningIntent:
@@ -141,8 +144,9 @@ def execute_signing_intent(
     executor: Callable[[EQCContext], Any],
     eqc_engine: Optional[EQCEngine] = None,
     shield: Optional[ShieldEvaluator] = None,
-    # Phase 11 lock: Watch-only must be blocked before EQC/Shield/WSQK.
-    # Injected as a callable so this module stays pure + testable.
+    # NEW: real persisted account source (optional)
+    account_store: Optional[AccountStore] = None,
+    # Still allowed: injected override for tests / custom policy
     is_watch_only: Optional[Callable[[str, str], bool]] = None,
     use_wsqk: bool = True,
     ttl_seconds: int = 120,
@@ -156,9 +160,13 @@ def execute_signing_intent(
       2) Shield must ALLOW
       3) WSQK executes (if enabled) otherwise executor runs directly
     """
-    # 0) Watch-only hard block
-    if is_watch_only is not None and is_watch_only(intent.wallet_id, intent.account_id):
-        raise ExecutionBlocked("watch-only account: signing is not permitted")
+    # 0) Watch-only hard block (override first, then persisted data)
+    if is_watch_only is not None:
+        if is_watch_only(intent.wallet_id, intent.account_id):
+            raise ExecutionBlocked("watch-only account: signing is not permitted")
+    elif account_store is not None:
+        if account_store.is_watch_only(intent.wallet_id, intent.account_id):
+            raise ExecutionBlocked("watch-only account: signing is not permitted")
 
     eqc = eqc_engine or EQCEngine()
     shield_eval = shield or DefaultShieldEvaluator()
