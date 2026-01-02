@@ -19,6 +19,20 @@ There must be **no code path** that allows signing or execution without:
 
 ---
 
+## Signing Gate (Non-Negotiable)
+
+All signing in Adamantine Wallet OS must go through the **Shield Signing Gate**:
+
+**EQC → Shield → WSQK**
+
+No direct signing APIs are supported. Any signing attempt that does not pass
+EQC `ALLOW` and Shield `ALLOW` is blocked, including watch-only accounts.
+
+**Single entrypoint:** `execute_signing_intent(...)` in  
+`core/runtime/shield_signing_gate.py`
+
+---
+
 ## Minimal interface shapes (stable names)
 
 ### EQC
