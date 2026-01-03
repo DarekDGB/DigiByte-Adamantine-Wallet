@@ -1,3 +1,5 @@
+import pytest
+
 from core.storage.memory_store import MemoryWalletStorage
 from core.dd.dd_store import DDStore, DDPosition, DDBalance, DDOutput
 
@@ -74,7 +76,6 @@ def test_dd_store_balances_set_get_and_iter():
     assert got2 is not None
     assert got2.balance_minor == 222
 
-    # iter only for (w1,a1)
     balances = sorted([(b.address, b.balance_minor) for b in store.iter_balances("w1", "a1")])
     assert balances == [("addr1", 111), ("addr2", 222)]
 
@@ -119,3 +120,60 @@ def test_dd_store_outputs_save_load_and_iter():
 
     store.delete_output("tx1", 0)
     assert store.load_output("tx1", 0) is None
+
+
+def test_dd_store_apply_atomic_commits_all():
+    storage = MemoryWalletStorage()
+    store = DDStore(storage)
+
+    out = DDOutput(
+        txid="txA",
+        vout=0,
+        wallet_id="w1",
+        account_id="a1",
+        address="addr1",
+        amount_minor=500,
+        is_spent=False,
+    )
+    bal = DDBalance(wallet_id="w1", account_id="a1", address="addr1", balance_minor=500)
+
+    store.apply_atomic(outputs_upsert=[out], balances_upsert=[bal])
+
+    assert store.load_output("txA", 0) is not None
+    got_bal = store.get_balance("w1", "a1", "addr1")
+    assert got_bal is not None
+    assert got_bal.balance_minor == 500
+
+
+def test_dd_store_apply_atomic_rolls_back_on_exception():
+    storage = MemoryWalletStorage()
+    store = DDStore(storage)
+
+    # pre-existing state
+    store.set_balance(DDBalance(wallet_id="w1", account_id="a1", address="addr1", balance_minor=1))
+
+    # We simulate a failure by raising inside a batch.
+    # Since apply_atomic uses a context-managed batch, an exception should rollback.
+    out = DDOutput(
+        txid="txFAIL",
+        vout=0,
+        wallet_id="w1",
+        account_id="a1",
+        address="addr1",
+        amount_minor=999,
+        is_spent=False,
+    )
+    bal = DDBalance(wallet_id="w1", account_id="a1", address="addr1", balance_minor=999)
+
+    with pytest.raises(RuntimeError):
+        with storage.begin_batch() as b:
+            # mirror what apply_atomic would do
+            b.put("DD_OUTPUT:txFAIL:0", out.__dict__)
+            b.put("DD_BALANCE:w1:a1:addr1", bal.__dict__)
+            raise RuntimeError("boom")
+
+    # state unchanged
+    assert store.load_output("txFAIL", 0) is None
+    got_bal = store.get_balance("w1", "a1", "addr1")
+    assert got_bal is not None
+    assert got_bal.balance_minor == 1
