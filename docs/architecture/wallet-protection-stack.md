@@ -1,3 +1,18 @@
+<!--
+LEGACY DOCUMENT NOTICE
+
+This document reflects an earlier conceptual design stage of Adamantine Wallet OS.
+It is preserved for historical context.
+
+It is NOT authoritative for current signing, execution, storage, or security behavior.
+For the locked architecture, see:
+- docs/ARCHITECTURE_LOCK.md
+- docs/architecture/DIAGRAMS_INDEX.md
+- docs/architecture/signing-gate-flow.md
+- docs/architecture/storage-architecture.md
+- docs/architecture/dd-storage-model.md
+-->
+
 # Wallet Protection Stack
 
 This document provides a high-level view of the Adamantine Wallet protection stack,
