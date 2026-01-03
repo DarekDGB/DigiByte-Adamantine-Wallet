@@ -49,9 +49,9 @@ Each layer contributes signals; no single layer is trusted in isolation.
 The Shield aggregates signals into a **single risk decision** with explainability.
 
 Related docs:
-- `wallet-protection-stack.md`
-- `transaction-defense-flow.md`
-- `threat-signal-lifecycle.md`
+- `architecture/legacy/architecture/legacy/wallet-protection-stack.md`
+- `architecture/legacy/architecture/legacy/transaction-defense-flow.md`
+- `architecture/legacy/architecture/legacy/threat-signal-lifecycle.md`
 
 ---
 
@@ -93,7 +93,7 @@ Related docs:
 
 Related doc:
 - `eqc-wsqk-runtime.md`
-- `policy-engine-flow.md`
+- `architecture/legacy/architecture/legacy/policy-engine-flow.md`
 
 ---
 
