@@ -1,3 +1,13 @@
+<!--
+SUPPORTING / PARTIAL DOCUMENT NOTICE
+
+This document provides helpful context but is NOT authoritative if it conflicts with:
+- code behavior
+- regression tests
+- docs/ARCHITECTURE_LOCK.md
+- docs/architecture/DIAGRAMS_INDEX.md
+-->
+
 # Adamantine Wallet OS — EQC · WSQK · Runtime Architecture
 
 This document defines the **core execution-security architecture** of
