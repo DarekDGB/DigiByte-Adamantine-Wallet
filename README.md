@@ -117,8 +117,6 @@ All invariants are enforced in code and locked by CI tests.
 
 ---
 
----
-
 ## Design Motivation vs Enforcement
 
 Some documents in this repository (notably simulated attack reports)
@@ -134,7 +132,6 @@ EQC and WSQK are the architectural response to those threats:
 The simulations are design inputs, not retroactive justifications.
 
 ---
-
 
 # 🛡️ Adamantine & The DigiByte Quantum Shield
 
@@ -466,7 +463,6 @@ Includes:
 > predate EQC and WSQK. They document adversarial scenarios that motivated the
 > architecture, not post-hoc mappings of current enforcement behavior.
 
-
 ### 🔐 Security Architecture
 
 - [Trust Wallet Attack Immunity Checklist](docs/security/trust-wallet-attack-immunity-checklist.md)
@@ -482,7 +478,15 @@ The architecture focuses on:
 - Optional network intelligence without centralization  
 - Safe failure behavior under uncertainty or offline conditions  
 
-📐 **[Architecture Overview](docs/architecture/ARCHITECTURE.md)**  
+📐 **Architecture Documentation**
+
+- **[Architecture Overview](docs/architecture/ARCHITECTURE.md)**  
+- **[Architecture Lock (What is Frozen vs Extensible)](docs/ARCHITECTURE_LOCK.md)**  
+- **[Architecture Diagrams Index](docs/architecture/DIAGRAMS_INDEX.md)**  
+
+> The Diagrams Index is the authoritative map of the system.  
+> It clearly separates **locked architecture**, **supporting context**, and **legacy documents**.
+
 ## 🔒 Public API Index (Locked)
 
 - `docs/api/API_OVERVIEW.md`
@@ -490,7 +494,6 @@ The architecture focuses on:
 - `docs/api/SYNC_API.md`
 - `docs/api/TX_API.md`
 - `docs/api/EQC_WSQK_API.md`
-
 
 ---
 
