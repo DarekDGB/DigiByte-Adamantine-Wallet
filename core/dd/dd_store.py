@@ -13,9 +13,9 @@ Purpose:
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
 
-from core.storage.interface import WalletStorage, KeyNS
+from core.storage.interface import WalletStorage, WalletBatch, KeyNS
 
 
 DD_NS = KeyNS("DD")
@@ -149,3 +149,31 @@ class DDStore:
             raw = self._storage.get(k)
             if raw is not None:
                 yield DDOutput(**raw)
+
+    # -------------------------
+    # Atomic batch helper
+    # -------------------------
+
+    def apply_atomic(
+        self,
+        *,
+        outputs_upsert: Sequence[DDOutput] = (),
+        outputs_delete: Sequence[tuple[str, int]] = (),
+        balances_upsert: Sequence[DDBalance] = (),
+    ) -> None:
+        """
+        Apply multiple DD updates atomically in one WalletBatch.
+
+        This is a STORAGE helper only.
+        No minting/redeem rules. No validation. No business logic.
+        """
+        with self._storage.begin_batch() as b:
+            # outputs
+            for out in outputs_upsert:
+                b.put(self._out_key(out.txid, out.vout), asdict(out))
+            for txid, vout in outputs_delete:
+                b.delete(self._out_key(txid, vout))
+
+            # balances
+            for bal in balances_upsert:
+                b.put(self._bal_key(bal.wallet_id, bal.account_id, bal.address), asdict(bal))
