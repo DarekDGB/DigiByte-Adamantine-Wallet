@@ -1,14 +1,18 @@
 # Signing Gate Flow — EQC → Shield → WSQK → Runtime
 
 **Author:** DarekDGB  
-**License:** MIT
+**License:** MIT  
+**Status:** LOCKED / AUTHORITATIVE
 
-This diagram is **authoritative** for all sensitive execution (signing/minting/authorization).
-There is **one supported entrypoint**:
+This diagram is **authoritative** for all sensitive execution
+(signing, minting, authorization).
 
-- `execute_signing_intent(...)` in `core/runtime/shield_signing_gate.py`
+There is **one supported entrypoint only**:
 
-Any path that bypasses this gate is **invalid by architecture**.
+- `execute_signing_intent(...)`  
+  (`core/runtime/shield_signing_gate.py`)
+
+Any execution path that bypasses this flow is **invalid by architecture**.
 
 ---
 
@@ -16,48 +20,72 @@ Any path that bypasses this gate is **invalid by architecture**.
 
 ```mermaid
 flowchart TD
-  A[SigningIntent<br/>(wallet_id, account_id, action, asset, ...)] --> B{Watch-only?}
-  B -- Yes --> X[BLOCK<br/>ExecutionBlocked<br/>"watch-only account"]
-  B -- No --> C[EQC Engine<br/>decide(context)]
-  C --> D{EQC Verdict == ALLOW?}
-  D -- No --> Y[BLOCK<br/>ExecutionBlocked<br/>"EQC blocked"]
-  D -- Yes --> E[Shield Evaluator<br/>evaluate(intent)]
-  E --> F{Shield blocked?}
-  F -- Yes --> Z[BLOCK<br/>ExecutionBlocked<br/>"Shield blocked"]
-  F -- No --> G[WSQK Bind Scope<br/>bind_scope_from_eqc(...)]
-  G --> H[Runtime Capability<br/>issue_runtime_capability(...)]
-  H --> I[Execute With Scope<br/>execute_with_scope(...)]
-  I --> J[Result<br/>signed tx / execution output]
+    A["SigningIntent<br>wallet_id, account_id, action"] --> B{Watch-only}
+    B -- Yes --> X["BLOCK<br>ExecutionBlocked"]
+    B -- No --> C["EQC Engine<br>decide"]
+    C --> D{EQC ALLOW}
+    D -- No --> Y["BLOCK<br>EQC denied"]
+    D -- Yes --> E["Shield<br>evaluate"]
+    E --> F{Shield blocked}
+    F -- Yes --> Z["BLOCK<br>Shield denied"]
+    F -- No --> G["WSQK<br>bind scope"]
+    G --> H["Runtime<br>issue capability"]
+    H --> I["Execute<br>with scope"]
+    I --> J["Execution result"]
 ```
 
 ---
 
-## Invariants (Non-Negotiable)
+## Enforced Invariants (Non-Negotiable)
 
-1. **Watch-only block is first**
-   - If the account is watch-only, execution is blocked **before** EQC, Shield, or WSQK.
+1. **Watch-only check is first**
+   - If an account is watch-only, execution is blocked immediately.
+   - No EQC, Shield, WSQK, or Runtime interaction occurs.
 
 2. **EQC is decision-only**
-   - EQC may compute context hashes and produce verdicts.
-   - EQC must not sign, mint, or execute.
+   - Produces a verdict (`ALLOW` / deny).
+   - No keys.
+   - No signing.
+   - No execution.
 
-3. **Shield is a second gate**
-   - Shield can block even if EQC allows.
+3. **Shield is a secondary gate**
+   - Shield may block even when EQC allows.
+   - Shield never signs or executes.
 
 4. **WSQK executes, it does not decide**
-   - WSQK receives a scope bound from EQC decision + intent context.
-   - WSQK execution is time-bounded (TTL) and scope-bounded.
+   - Scope is derived from EQC decision + intent context.
+   - Scope is time-bounded (TTL) and context-bound.
+   - No persistent private keys.
 
-5. **Runtime enforces**
-   - Execution requires a valid runtime capability bound to the scope hash.
-   - No direct signing is supported.
+5. **Runtime enforces capability**
+   - Execution requires a valid runtime capability.
+   - No direct signing APIs exist.
 
 ---
 
 ## Code References
 
-- Gate entrypoint: `core/runtime/shield_signing_gate.py`
-- EQC context builder: `_build_eqc_context(...)`
-- WSQK binding: `core/wsqk/context_bind.py`
-- WSQK executor: `core/wsqk/executor.py`
-- Runtime capability: `core/runtime/capabilities.py`
+- Signing gate entrypoint:  
+  `core/runtime/shield_signing_gate.py`
+
+- EQC context construction:  
+  `core/eqc/context.py`
+
+- WSQK scope binding:  
+  `core/wsqk/context_bind.py`
+
+- WSQK executor:  
+  `core/wsqk/executor.py`
+
+- Runtime capability enforcement:  
+  `core/runtime/capabilities.py`
+
+---
+
+## Architectural Rule
+
+> **No signing without approval.  
+> No approval without reason.  
+> No execution without authority.**
+
+This rule is enforced by **architecture, code, and tests**, not convention.
