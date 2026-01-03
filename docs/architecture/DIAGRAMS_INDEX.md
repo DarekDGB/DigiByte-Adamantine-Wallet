@@ -9,6 +9,7 @@ Adamantine Wallet OS.
 
 It clarifies:
 - which diagrams are **authoritative**
+- which diagrams are **supporting / partial**
 - which diagrams are **legacy / historical**
 - where new contributors should start
 
@@ -16,34 +17,48 @@ It clarifies:
 
 ## ✅ Authoritative Diagrams (Current Architecture)
 
-These diagrams reflect the **locked architecture** (Phases 11–14).
+These diagrams reflect the **locked architecture** (Phases 11–14 + Query API).
 They are enforced by code, tests, and documentation.
 
-### 1) Signing & Execution
-- **`signing-gate-flow.md`**  
+### Signing & Execution
+- `signing-gate-flow.md`  
   Authoritative signing and execution flow:  
-  `Watch-only → EQC → Shield → WSQK → Runtime`
+  **Watch-only → EQC → Shield → WSQK → Runtime**
 
-### 2) Storage & Persistence
-- **`storage-architecture.md`**  
+### EQC & WSQK
+- `eqc-decision-flow.md`  
+  EQC as **decision-only**: Context → Verdict.
+- `wsqk-execution-scope.md`  
+  WSQK as **execution-only**: scope-bound, time-bound execution.
+
+### Storage & Persistence
+- `storage-architecture.md`  
   WalletStorage, WalletBatch, namespaces, and backends.
 
-### 3) DigiDollar (DD)
-- **`dd-storage-model.md`**  
+### DigiDollar (DD)
+- `dd-storage-model.md`  
   DD_POSITION / DD_BALANCE / DD_OUTPUT and atomic batch updates.
+
+### Client Read Boundary
+- `query-api-boundary.md`  
+  Read-only client access via WalletQueryAPI (no signing, no mutation).
+
+### Watch-only Enforcement Path
+- `account-watch-only-path.md`  
+  Persisted watch-only account metadata enforced by the signing gate.
 
 ---
 
 ## 🟡 Supporting / Partial Diagrams
 
-These diagrams provide useful context but are **not authoritative**
-for signing or execution rules.
+These documents provide useful context but are **not authoritative**
+for locked signing, execution, or storage rules.
 
 - `eqc-wsqk-runtime.md`  
-  Early description of EQC / WSQK / Runtime before full gate lock.
+  Early narrative of EQC / WSQK / Runtime (kept for additional context).
 
-These may be referenced for understanding, but **do not override**
-the authoritative diagrams above.
+If any supporting doc conflicts with authoritative diagrams or code/tests,
+the authoritative diagrams win.
 
 ---
 
@@ -52,18 +67,17 @@ the authoritative diagrams above.
 The following documents reflect **earlier conceptual stages** of the project.
 They are preserved for history but should not be used for implementation decisions.
 
-Examples:
-- `wallet-only-minimal-flow.md`
-- `policy-engine-flow.md`
-- `transaction-defense-flow.md`
-- `wallet-protection-stack.md`
-- `threat-signal-lifecycle.md`
-- `adaptive-core-learning-loop.md`
+All legacy diagrams live under:
 
-These files should include (or be treated as having) a header note:
+- `legacy/`
 
-> “This document reflects an early conceptual design and is not
-> authoritative for current signing, execution, or storage behavior.”
+Legacy files:
+- `legacy/wallet-only-minimal-flow.md`
+- `legacy/policy-engine-flow.md`
+- `legacy/transaction-defense-flow.md`
+- `legacy/wallet-protection-stack.md`
+- `legacy/threat-signal-lifecycle.md`
+- `legacy/adaptive-core-learning-loop.md`
 
 ---
 
@@ -72,7 +86,7 @@ These files should include (or be treated as having) a header note:
 If any diagram or document conflicts with:
 - code behavior
 - regression tests
-- `ARCHITECTURE_LOCK.md`
+- `docs/ARCHITECTURE_LOCK.md`
 
 Then the **locked artifacts win**.
 
@@ -80,10 +94,13 @@ Then the **locked artifacts win**.
 
 ## Where to Start (New Contributors)
 
-1. `ARCHITECTURE_LOCK.md`
+1. `docs/ARCHITECTURE_LOCK.md`
 2. `signing-gate-flow.md`
-3. `storage-architecture.md`
-4. `dd-storage-model.md`
+3. `eqc-decision-flow.md`
+4. `wsqk-execution-scope.md`
+5. `storage-architecture.md`
+6. `dd-storage-model.md`
+7. `query-api-boundary.md`
 
 Only after that, explore legacy material for background.
 
