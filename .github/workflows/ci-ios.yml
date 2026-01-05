@@ -2,33 +2,40 @@ name: iOS CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: read
 
 jobs:
-  ios-docs-check:
-    name: Verify iOS client structure
-    runs-on: macos-latest
+  ios-ci:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Ensure iOS client folder exists
+      - name: Verify iOS client structure
         run: |
-          if [ ! -d "./clients/ios" ]; then
-            echo "clients/ios folder is missing."
-            exit 1
-          fi
-          echo "✅ clients/ios folder found."
+          test -d "clients/ios"
+          echo "✅ clients/ios exists"
 
-      - name: List iOS client files
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test runner
         run: |
-          echo "📁 iOS client tree:"
-          ls -R ./clients/ios
+          python -m pip install --upgrade pip
+          python -m pip install pytest
 
-      # iOS workflow placeholder.
-      # Full native iOS build & test steps will be added during the Adamantine v0.3 implementation phase.
-      # For v0.2 architecture, this job verifies that the iOS client structure exists
-      # and can be inspected in CI without failing the pipeline.
+      - name: Run test suite
+        run: |
+          pytest -q
