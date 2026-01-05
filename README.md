@@ -1,4 +1,15 @@
 # 🔷 DigiByte Adamantine Wallet OS  
+![Android CI](https://github.com/DarekDGB/DigiByte-Adamantine-Wallet-OS/actions/workflows/ci-android.yml/badge.svg)
+![iOS CI](https://github.com/DarekDGB/DigiByte-Adamantine-Wallet-OS/actions/workflows/ci-ios.yml/badge.svg)
+![Web CI](https://github.com/DarekDGB/DigiByte-Adamantine-Wallet-OS/actions/workflows/ci-web.yml/badge.svg)
+![Docs](https://github.com/DarekDGB/DigiByte-Adamantine-Wallet-OS/actions/workflows/lint-docs.yml/badge.svg)
+![EQC](https://github.com/DarekDGB/DigiByte-Adamantine-Wallet-OS/actions/workflows/eqc.yml/badge.svg)
+![WSQK](https://github.com/DarekDGB/DigiByte-Adamantine-Wallet-OS/actions/workflows/wsqk.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Type](https://img.shields.io/badge/Type-Wallet--OS-blue)
+![Blockchain](https://img.shields.io/badge/Blockchain-DigiByte-002352)
+![Quantum Shield](https://img.shields.io/badge/Shield-Integrated-purple)
+
 ### *Quantum-Secure Wallet OS • Shield-Integrated • Multi-Client Architecture*  
 **Architecture by @DarekDGB — MIT Licensed**
 
@@ -388,7 +399,7 @@ Tests include:
 
 - `test_node_manager_priority_logic.py`  
 - `test_node_manager_errors.py`  
-- `test_node_manager_digimobile_preference.py`
+- `test_node_manager_digimobile_preference.py`  
 
 This is **enterprise-grade node routing**.
 
