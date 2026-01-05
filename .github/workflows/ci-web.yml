@@ -2,34 +2,40 @@ name: Web CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: read
 
 jobs:
-  web-docs-check:
-    name: Verify Web client structure
+  web-ci:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Ensure web client folder exists
+      - name: Verify Web client structure
         run: |
-          if [ ! -d "./clients/web" ]; then
-            echo "clients/web folder is missing."
-            exit 1
-          fi
-          echo "✅ clients/web folder found."
+          test -d "clients/web"
+          echo "✅ clients/web exists"
 
-      - name: List web client files
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test runner
         run: |
-          echo "📁 Web client tree:"
-          ls -R ./clients/web
+          python -m pip install --upgrade pip
+          python -m pip install pytest
 
-      # Web workflow placeholder.
-      # Detailed web-client tests (linting, builds, unit tests, and dependency installs)
-      # will be introduced during the Adamantine v0.3 implementation phase.
-      # For v0.2 architecture, this workflow validates that the web client structure exists
-      # and can be inspected safely in CI without causing failures.
+      - name: Run test suite
+        run: |
+          pytest -q
