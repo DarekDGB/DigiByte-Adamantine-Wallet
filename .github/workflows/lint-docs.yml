@@ -1,20 +1,65 @@
-name: Lint Docs
+name: Docs Integrity
 
 on:
   push:
-    branches: [ main ]
+    branches: ["main"]
   pull_request:
-    branches: [ main ]
+    branches: ["main"]
+
+permissions:
+  contents: read
 
 jobs:
-  docs-lint:
+  docs-integrity:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Placeholder docs lint (non-blocking)
+      - name: Validate docs entrypoints exist
         run: |
-          echo "Docs lint placeholder – not enforcing markdown rules yet."
-          echo "This job always succeeds so CI stays green."
+          test -f README.md
+          test -d docs
+          echo "✅ README.md and docs/ exist"
+
+      - name: Check local markdown links resolve
+        run: |
+          python - <<'PY'
+          import os, re, sys, glob
+
+          md_files = glob.glob("**/*.md", recursive=True)
+          link_re = re.compile(r"\]\(([^)]+)\)")
+
+          def is_external(link: str) -> bool:
+              return link.startswith(("http://", "https://", "mailto:"))
+
+          failures = []
+
+          for md in md_files:
+              base = os.path.dirname(md)
+              with open(md, "r", encoding="utf-8", errors="replace") as f:
+                  text = f.read()
+
+              for raw in link_re.findall(text):
+                  link = raw.strip()
+                  link = link.split("#", 1)[0].strip()  # drop anchors
+                  if not link:
+                      continue
+                  if is_external(link):
+                      continue
+                  if link.startswith(("/", "issues/", "pull/")):
+                      continue
+
+                  target = os.path.normpath(os.path.join(base, link))
+                  if not os.path.exists(target):
+                      failures.append(f"{md}: broken link -> {raw}")
+
+          if failures:
+              print("❌ Broken local markdown links found:")
+              for f in failures[:200]:
+                  print(" -", f)
+              sys.exit(1)
+
+          print("✅ Local markdown links OK")
+          PY
