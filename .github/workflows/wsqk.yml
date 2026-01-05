@@ -1,0 +1,50 @@
+name: WSQK (Scoped Execution Keys)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  wsqk:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test runner
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run WSQK tests (including integration full-path)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest -q \
+            tests/test_wsqk_capability_ttl_enforced.py \
+            tests/test_wsqk_context_bind.py \
+            tests/test_wsqk_enforcement.py \
+            tests/test_wsqk_guard.py \
+            tests/test_wsqk_guard_smoke.py \
+            tests/test_wsqk_requires_capability.py \
+            tests/test_wsqk_scopes.py \
+            tests/test_wsqk_session.py \
+            tests/test_runtime_orchestrator_wsqk.py \
+            tests/test_runtime_orchestrator_wsqk_path.py \
+            tests/test_shield_gate_passes_wsqk_capability.py \
+            tests/test_integration_eqc_wsqk_full_path.py
