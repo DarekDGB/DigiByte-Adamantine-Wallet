@@ -4,14 +4,18 @@ import copy
 import hashlib
 import hmac
 import json
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+import adamantine.v1.integrations.shield_orchestrator_receipt_v4_verifier as verifier_module
+
 from adamantine.v1.contracts.reason_ids import ReasonId
 from adamantine.v1.contracts.shield_orchestrator_receipt_v4 import (
     COMPONENT_ROLES,
+    COMPONENT_VERDICT_DOMAIN,
     DEFAULT_STANDARD_PROFILE_BY_ALGORITHM,
     FN_DSA,
     ShieldV4ReceiptContractError,
@@ -38,6 +42,58 @@ from adamantine.v1.integrations.shield_orchestrator_receipt_v4_verifier import (
 
 FIXTURES = Path(__file__).resolve().parents[2] / "src" / "adamantine" / "v1" / "fixtures" / "shield_v4"
 FN_DSA_PROFILE = "fips206-draft-falcon1024-v1"
+NONCANONICAL_SIGNATURE_SEQUENCES = (
+    (ML_DSA, "classical-ed25519"),
+    (FN_DSA, "classical-ed25519", ML_DSA),
+    (FN_DSA, ML_DSA, "classical-ed25519"),
+    ("classical-ed25519", FN_DSA, ML_DSA),
+    (ML_DSA, "classical-ed25519", FN_DSA),
+    (ML_DSA, FN_DSA, "classical-ed25519"),
+)
+MISSING_REQUIRED_SIGNATURE_SEQUENCES = (
+    ("classical-ed25519",),
+    (ML_DSA,),
+    (FN_DSA,),
+    ("classical-ed25519", FN_DSA),
+    (ML_DSA, FN_DSA),
+)
+
+
+class _FlipAfterFirstSnapshotMapping(Mapping[str, Any]):
+    def __init__(self, valid: dict[str, Any], flipped: dict[str, Any]) -> None:
+        self._valid = valid
+        self._flipped = flipped
+        self._reads = 0
+
+    def __getitem__(self, key: str) -> Any:
+        source = self._valid if self._reads < len(self._valid) else self._flipped
+        self._reads += 1
+        return source[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._valid)
+
+    def __len__(self) -> int:
+        return len(self._valid)
+
+
+class _ExplodingMapping(Mapping[str, Any]):
+    def __init__(self, data: dict[str, Any]) -> None:
+        self._data = data
+
+    def __getitem__(self, key: str) -> Any:
+        raise RuntimeError(f"snapshot blocked for {key}")
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+
+class _ExplodingList(list[Any]):
+    def __iter__(self) -> Iterator[Any]:
+        raise RuntimeError("signature list snapshot blocked")
 
 
 def _load_flow_fixture(name: str) -> dict[str, Any]:
@@ -104,6 +160,37 @@ def _orchestrator_signature(receipt: dict[str, Any], algorithm: str) -> dict[str
         if entry["algorithm"] == algorithm:
             return entry
     raise AssertionError(f"fixture did not contain {algorithm} signature")
+
+
+def _ordered_signatures(
+    signatures: list[dict[str, Any]],
+    algorithm_sequence: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    by_algorithm = {entry["algorithm"]: entry for entry in signatures}
+    return [by_algorithm[algorithm] for algorithm in algorithm_sequence]
+
+
+def _verify_direct_orchestrator_bundle(
+    *,
+    flow: dict[str, Any],
+    bundle: Any,
+    signature_verifier,
+    expected_signed_payload_hash: str | None = None,
+):
+    receipt = flow["receipt"]
+    return _verify_bundle(
+        bundle,
+        expected_signed_payload_hash=(
+            expected_signed_payload_hash or receipt["signed_payload_hash"]
+        ),
+        expected_domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN,
+        required_role=ORCHESTRATOR_ROLE,
+        registry=load_trusted_shield_v4_key_registry(flow["trusted_key_registry"]),
+        verification_time=flow["verification_time"],
+        artifact_not_before=receipt["not_before"],
+        artifact_not_after=receipt["not_after"],
+        signature_verifier=signature_verifier,
+    )
 
 
 def test_v48h_adamantineos_accepts_fn_dsa_absent_and_valid_fn_dsa_present() -> None:
@@ -384,3 +471,264 @@ def test_v48h_profile_and_component_result_private_edges_are_fail_closed() -> No
         )
 
     assert KEY_REGISTRY_SCHEMA_VERSION == flow["trusted_key_registry"]["schema_version"]
+
+
+@pytest.mark.parametrize("bundle_target", ("orchestrator", "component"))
+@pytest.mark.parametrize("algorithm_sequence", NONCANONICAL_SIGNATURE_SEQUENCES)
+def test_v49j_adamantineos_rejects_noncanonical_receipt_and_component_order_before_trust_or_crypto(
+    bundle_target: str,
+    algorithm_sequence: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    flow = _load_flow_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")
+    receipt = copy.deepcopy(flow["receipt"])
+    if bundle_target == "orchestrator":
+        bundle = receipt["signature_bundle"]
+    else:
+        bundle = receipt["component_verdicts"][-1]["signature_bundle"]
+    bundle["signatures"] = _ordered_signatures(
+        bundle["signatures"],
+        algorithm_sequence,
+    )
+    if bundle_target == "component":
+        _resign_orchestrator_receipt(receipt)
+
+    calls = {"trust": 0, "crypto": 0}
+
+    def forbidden_key_lookup(*_args, **_kwargs):
+        calls["trust"] += 1
+        raise AssertionError("trust lookup must not run before whole-receipt preflight")
+
+    def forbidden_crypto(_entry, _key):
+        calls["crypto"] += 1
+        raise AssertionError("crypto must not run before whole-receipt preflight")
+
+    monkeypatch.setattr(verifier_module, "_find_key", forbidden_key_lookup)
+    result = verify_shield_v4_orchestrator_receipt(
+        receipt,
+        expected_context_hash=flow["expected_context_hash"],
+        expected_request_id=flow["expected_request_id"],
+        trusted_key_registry=flow["trusted_key_registry"],
+        verification_time=flow["verification_time"],
+        signature_verifier=forbidden_crypto,
+    )
+
+    assert result.state == ShieldV4ReceiptVerificationState.REJECTED_INVALID_RECEIPT
+    assert result.final_approval is False
+    assert calls == {"trust": 0, "crypto": 0}
+
+
+@pytest.mark.parametrize("algorithm_sequence", NONCANONICAL_SIGNATURE_SEQUENCES)
+def test_v49j_direct_bundle_verifier_rejects_noncanonical_order_before_trust_or_crypto(
+    algorithm_sequence: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    flow = _load_flow_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")
+    bundle = copy.deepcopy(flow["receipt"]["signature_bundle"])
+    bundle["signatures"] = _ordered_signatures(
+        bundle["signatures"],
+        algorithm_sequence,
+    )
+    calls = {"trust": 0, "crypto": 0}
+
+    def forbidden_key_lookup(*_args, **_kwargs):
+        calls["trust"] += 1
+        raise AssertionError("trust lookup must not run before bundle preflight")
+
+    def forbidden_crypto(_entry, _key):
+        calls["crypto"] += 1
+        raise AssertionError("crypto must not run before bundle preflight")
+
+    monkeypatch.setattr(verifier_module, "_find_key", forbidden_key_lookup)
+    with pytest.raises(_VerifierRejection, match="canonical policy order"):
+        _verify_direct_orchestrator_bundle(
+            flow=flow,
+            bundle=bundle,
+            signature_verifier=forbidden_crypto,
+        )
+
+    assert calls == {"trust": 0, "crypto": 0}
+
+
+@pytest.mark.parametrize("algorithm_sequence", MISSING_REQUIRED_SIGNATURE_SEQUENCES)
+def test_v49j_direct_bundle_verifier_rejects_missing_required_before_trust_or_crypto(
+    algorithm_sequence: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    flow = _load_flow_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")
+    bundle = copy.deepcopy(flow["receipt"]["signature_bundle"])
+    bundle["signatures"] = _ordered_signatures(
+        bundle["signatures"],
+        algorithm_sequence,
+    )
+    calls = {"trust": 0, "crypto": 0}
+
+    def forbidden_key_lookup(*_args, **_kwargs):
+        calls["trust"] += 1
+        raise AssertionError("trust lookup must not run before bundle preflight")
+
+    def forbidden_crypto(_entry, _key):
+        calls["crypto"] += 1
+        raise AssertionError("crypto must not run before bundle preflight")
+
+    monkeypatch.setattr(verifier_module, "_find_key", forbidden_key_lookup)
+    with pytest.raises(_VerifierRejection, match="policy requirements"):
+        _verify_direct_orchestrator_bundle(
+            flow=flow,
+            bundle=bundle,
+            signature_verifier=forbidden_crypto,
+        )
+
+    assert calls == {"trust": 0, "crypto": 0}
+
+
+@pytest.mark.parametrize(
+    "defect",
+    (
+        "bundle_not_mapping",
+        "bundle_snapshot_error",
+        "bundle_fields",
+        "bundle_schema",
+        "bundle_policy",
+        "empty_signatures",
+        "signature_list_snapshot_error",
+        "invalid_expected_hash",
+        "entry_not_mapping",
+        "entry_snapshot_error",
+        "entry_fields",
+        "unsupported_algorithm",
+        "duplicate_algorithm",
+        "duplicate_key",
+        "invalid_entry_hash",
+        "mismatched_hash",
+        "invalid_signature_encoding",
+        "wrong_domain",
+        "wrong_profile",
+        "empty_key_id",
+        "invalid_key_version",
+    ),
+)
+def test_v49j_direct_bundle_verifier_completes_structural_preflight_before_trust_or_crypto(
+    defect: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    flow = _load_flow_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")
+    bundle: Any = copy.deepcopy(flow["receipt"]["signature_bundle"])
+    bundle["signatures"] = bundle["signatures"][:2]
+    expected_hash: str | None = None
+    if defect == "bundle_not_mapping":
+        bundle = []
+    elif defect == "bundle_snapshot_error":
+        bundle = _ExplodingMapping(bundle)
+    elif defect == "bundle_fields":
+        bundle["extra"] = True
+    elif defect == "bundle_schema":
+        bundle["schema_version"] = "wrong"
+    elif defect == "bundle_policy":
+        bundle["policy_version"] = "policy.weak"
+    elif defect == "empty_signatures":
+        bundle["signatures"] = []
+    elif defect == "signature_list_snapshot_error":
+        bundle["signatures"] = _ExplodingList(bundle["signatures"])
+    elif defect == "invalid_expected_hash":
+        expected_hash = "bad"
+    elif defect == "entry_not_mapping":
+        bundle["signatures"][1] = "bad"
+    elif defect == "entry_snapshot_error":
+        bundle["signatures"][1] = _ExplodingMapping(bundle["signatures"][1])
+    elif defect == "entry_fields":
+        bundle["signatures"][1].pop("signature")
+    elif defect == "unsupported_algorithm":
+        bundle["signatures"][1]["algorithm"] = "unknown"
+    elif defect == "duplicate_algorithm":
+        bundle["signatures"][1]["algorithm"] = "classical-ed25519"
+    elif defect == "duplicate_key":
+        bundle["signatures"][1]["key_id"] = bundle["signatures"][0]["key_id"]
+        bundle["signatures"][1]["key_version"] = bundle["signatures"][0]["key_version"]
+    elif defect == "invalid_entry_hash":
+        bundle["signatures"][1]["signed_payload_hash"] = "bad"
+    elif defect == "mismatched_hash":
+        bundle["signatures"][1]["signed_payload_hash"] = "0" * 64
+    elif defect == "invalid_signature_encoding":
+        bundle["signatures"][1]["signature"] = "bad"
+    elif defect == "wrong_domain":
+        bundle["signatures"][1]["domain_tag"] = COMPONENT_VERDICT_DOMAIN
+    elif defect == "wrong_profile":
+        bundle["signatures"][1]["standard_profile"] = FN_DSA_PROFILE
+    elif defect == "empty_key_id":
+        bundle["signatures"][1]["key_id"] = ""
+    elif defect == "invalid_key_version":
+        bundle["signatures"][1]["key_version"] = False
+
+    calls = {"trust": 0, "crypto": 0}
+
+    def forbidden_key_lookup(*_args, **_kwargs):
+        calls["trust"] += 1
+        raise AssertionError("trust lookup must not run before bundle preflight")
+
+    def forbidden_crypto(_entry, _key):
+        calls["crypto"] += 1
+        raise AssertionError("crypto must not run before bundle preflight")
+
+    monkeypatch.setattr(verifier_module, "_find_key", forbidden_key_lookup)
+    with pytest.raises(_VerifierRejection):
+        _verify_direct_orchestrator_bundle(
+            flow=flow,
+            bundle=bundle,
+            signature_verifier=forbidden_crypto,
+            expected_signed_payload_hash=expected_hash,
+        )
+
+    assert calls == {"trust": 0, "crypto": 0}
+
+
+def test_v49j_direct_bundle_verifier_uses_preflight_snapshots_during_crypto() -> None:
+    flow = _load_flow_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")
+    bundle = copy.deepcopy(flow["receipt"]["signature_bundle"])
+    calls = 0
+
+    def mutating_verifier(entry, key):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            bundle["signatures"][1]["signature"] = "0" * 64
+        return _verify_test_only_signature(entry, key)
+
+    summary = _verify_direct_orchestrator_bundle(
+        flow=flow,
+        bundle=bundle,
+        signature_verifier=mutating_verifier,
+    )
+
+    assert summary["verified_algorithms"] == ["classical-ed25519", ML_DSA, FN_DSA]
+    assert calls == 3
+    assert bundle["signatures"][1]["signature"] == "0" * 64
+
+
+def test_v49j_direct_bundle_verifier_snapshots_stateful_mapping_before_validation() -> None:
+    flow = _load_flow_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")
+    bundle = copy.deepcopy(flow["receipt"]["signature_bundle"])
+    valid_entry = copy.deepcopy(bundle["signatures"][1])
+    flipped_entry = copy.deepcopy(valid_entry)
+    flipped_entry["signed_payload_hash"] = "0" * 64
+    flipped_entry["domain_tag"] = COMPONENT_VERDICT_DOMAIN
+    flipped_entry["signature"] = "0" * 64
+    stateful_entry = _FlipAfterFirstSnapshotMapping(valid_entry, flipped_entry)
+    bundle["signatures"][1] = stateful_entry
+    observed_entries: list[dict[str, Any]] = []
+
+    def observing_verifier(entry, key):
+        observed_entries.append(dict(entry))
+        return _verify_test_only_signature(entry, key)
+
+    summary = _verify_direct_orchestrator_bundle(
+        flow=flow,
+        bundle=bundle,
+        signature_verifier=observing_verifier,
+    )
+
+    assert summary["verified_algorithms"] == ["classical-ed25519", ML_DSA, FN_DSA]
+    assert observed_entries[1]["signed_payload_hash"] == flow["receipt"]["signed_payload_hash"]
+    assert observed_entries[1]["domain_tag"] == ORCHESTRATOR_RECEIPT_DOMAIN
+    assert stateful_entry["signed_payload_hash"] == "0" * 64
+    assert stateful_entry["domain_tag"] == COMPONENT_VERDICT_DOMAIN
