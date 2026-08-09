@@ -33,6 +33,14 @@ from adamantine.v1.contracts.shield_orchestrator_receipt_v4 import (
 
 FIXTURES = Path(__file__).resolve().parents[2] / "src" / "adamantine" / "v1" / "fixtures" / "shield_v4"
 CTX = "a" * 64
+NONCANONICAL_SIGNATURE_SEQUENCES = (
+    ("ml-dsa", "classical-ed25519"),
+    ("fn-dsa", "classical-ed25519", "ml-dsa"),
+    ("fn-dsa", "ml-dsa", "classical-ed25519"),
+    ("classical-ed25519", "fn-dsa", "ml-dsa"),
+    ("ml-dsa", "classical-ed25519", "fn-dsa"),
+    ("ml-dsa", "fn-dsa", "classical-ed25519"),
+)
 
 
 def load_fixture(name: str) -> dict[str, object]:
@@ -269,6 +277,30 @@ def test_shield_v4_contract_rejects_signature_bundle_shape_and_policy_errors() -
     missing_required["signatures"] = [missing_required["signatures"][0]]
     with pytest.raises(ShieldV4ReceiptContractError, match="policy requirements"):
         _validate_signature_bundle_shape(missing_required, expected_signed_payload_hash=expected_hash, expected_domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN)
+
+
+@pytest.mark.parametrize("algorithm_sequence", NONCANONICAL_SIGNATURE_SEQUENCES)
+def test_v49j_contract_rejects_noncanonical_signature_bundle_order(
+    algorithm_sequence: tuple[str, ...],
+) -> None:
+    if len(algorithm_sequence) == 2:
+        receipt = load_fixture("valid_allow_signed_receipt.json")
+    else:
+        receipt = load_fixture("full_multi_repo_v4_fn_dsa_allow_flow.json")["receipt"]
+    bundle = copy.deepcopy(receipt["signature_bundle"])
+    signatures_by_algorithm = {
+        entry["algorithm"]: entry for entry in bundle["signatures"]
+    }
+    bundle["signatures"] = [
+        signatures_by_algorithm[algorithm] for algorithm in algorithm_sequence
+    ]
+
+    with pytest.raises(ShieldV4ReceiptContractError, match="canonical policy order"):
+        _validate_signature_bundle_shape(
+            bundle,
+            expected_signed_payload_hash=receipt["signed_payload_hash"],
+            expected_domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN,
+        )
 
 
 def test_shield_v4_contract_rejects_final_outcome_and_component_set_mismatches() -> None:
