@@ -1,7 +1,7 @@
 # AdamantineOS Shield v4 PQC Verifier
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.8H-D FN-DSA verify-only lock
+Status: Shield v4 V4.9-J canonical signature-bundle-order verifier lock
 Scope: AdamantineOS-side Shield v4 verifier contract, not a Shield v4 release claim
 
 ## 1. Boundary statement
@@ -26,7 +26,7 @@ The Shield v4 AdamantineOS boundary is currently split across these files:
 - `src/adamantine/v1/fixtures/shield_v4/full_multi_repo_v4_fn_dsa_allow_flow.json`
 - `src/adamantine/v1/fixtures/shield_v4/fn_dsa_signed_message_draft_profile_kat.json`
 
-The current verifier uses TEST-ONLY deterministic signature checks for the contract phase and real-backend message construction for the verify-only boundary. Production PQC backend wiring must preserve the same schema, canonicalization, domain separation, policy, trust-registry, standard-profile binding, and fail-closed behavior.
+Fixture tests explicitly inject the TEST-ONLY deterministic signature verifier. The public verifier API has no default signature backend, and real backends remain verify-only. Production PQC backend wiring must preserve the same schema, canonicalization, domain separation, policy, trust-registry, standard-profile binding, and fail-closed behavior.
 
 ## 3. Required Shield v4 receipt contract
 
@@ -60,12 +60,29 @@ The verifier must reject:
 
 - missing required algorithm entries
 - duplicate algorithm entries
+- noncanonical algorithm order
 - unknown algorithms
 - unsupported algorithms
 - a weaker embedded policy than the verifier-required policy
 - signature bundles that behave as first-valid-wins instead of strict AND
 - unsupported or flipped `standard_profile` values
 - present-but-invalid optional FN-DSA evidence
+
+### 4.1 Canonical signature-bundle order and preflight
+
+Every raw Orchestrator receipt bundle and every embedded component bundle must use this exact sequence:
+
+1. `classical-ed25519`
+2. `ml-dsa`
+3. optional `fn-dsa`, when present
+
+AdamantineOS validates the received sequence and never sorts, repairs, or otherwise normalizes signature evidence into compliance. Reversed required order, optional-first order, and every optional interleaving are rejected fail-closed.
+
+Before any trust-registry key lookup or cryptographic verifier call, AdamantineOS completes a receipt-wide preflight over every embedded component bundle and the top-level Orchestrator bundle. The preflight validates bundle and entry shape, supported algorithms and profiles, exact order, required presence, duplicate algorithms, duplicate key identities, signed payload hashes, domain tags, key identifiers, and key versions. The private bundle verifier repeats the same preflight before its own trust or cryptographic work, so direct internal use cannot bypass the boundary.
+
+Preflight retains a new outer snapshot for each entry mapping. It does not promise recursive deep-copying of nested values. This preserves the existing contract while preventing caller mutation of the original entry mappings from changing the prepared cryptographic pass.
+
+The strict required `classical-ed25519` plus `ml-dsa` AND policy is unchanged. The optional entry remains last and carries draft FN-DSA/Falcon-1024 evidence only. Optional-present-invalid remains fatal, and optional evidence cannot rescue either required path.
 
 ## 5. Domain separation and signed payload hashes
 
@@ -84,10 +101,11 @@ The verifier trust registry must bind each signature to:
 - key id
 - key version
 - algorithm
-- standard profile
 - validity window
 - active or revoked status
 - key registry version
+
+The signature contract and cryptographic signed-message construction bind the algorithm-specific standard profile separately from the trust-registry record.
 
 A signature is rejected if:
 
@@ -97,7 +115,7 @@ A signature is rejected if:
 - the key is revoked
 - the key is outside its validity window
 - the receipt or component verdict was produced outside the key validity window
-- a registry rollback attempts to reactivate revoked authority
+- the registry version is below the caller-required minimum or disagrees with the receipt and component registry versions
 
 ## 7. Freshness and replay checks
 
@@ -159,16 +177,16 @@ Default compatibility mode remains `shield_v4_required=False` until a later cont
 
 The verifier must process checks cheap to expensive:
 
-1. mapping/schema shape
-2. schema and contract version
-3. canonicalization profile
-4. context hash and request id
-5. freshness window
-6. receipt and signed payload hashes
-7. trust registry shape and version
-8. key role/id/version/algorithm binding
-9. standard-profile-bound test-only signature verification now, production PQC verification through the explicit verify-only backend later
-10. replay marking only after verification succeeds
+1. full receipt-contract validation: mapping and schema shape, versions, canonicalization profile, context, authority boundary, receipt and signed payload hashes, and every embedded and top-level bundle's shape, profile, hash, domain, canonical order, required presence, and duplicate-algorithm checks
+2. expected request-id comparison
+3. explicit signature-backend presence and injected replay-denylist checks
+4. independent receipt-wide verifier preflight over snapshot copies, including duplicate-key identities, for every embedded and top-level signature bundle
+5. trust-registry shape and version checks
+6. freshness-window checks
+7. key role/id/version/algorithm and validity-window binding plus standard-profile-bound component signature verification
+8. embedded component-summary cross-check
+9. standard-profile-bound Orchestrator signature verification
+10. verified evidence result; the caller may update replay state only after success
 11. final policy engine gates
 
 Malformed input must be rejected before expensive signature work.
@@ -184,12 +202,12 @@ The current AdamantineOS Shield v4 tests are:
 - `tests/policy/test_final_policy_engine_shield_v4_required.py`
 - `tests/test_adamantineos_shield_v4_docs_lock.py`
 
-These tests lock contract validation, verifier behavior, trust-registry checks, downgrade rejection, and final-policy v4-required behavior.
+These tests lock contract validation, canonical signature-bundle order, whole-receipt and direct-bundle preflight, verifier behavior, trust-registry checks, downgrade rejection, and final-policy v4-required behavior.
 
 ## 13. Release status
 
 This document does not claim Shield v4 is released.
 
-Current status: AdamantineOS has a Shield v4 verifier boundary, fixtures, fail-closed trust-registry checks, a v4-required final-policy gate, and V4.8H-D verify-only handling for optional FN-DSA/Falcon-1024 evidence.
+Current status: AdamantineOS has a Shield v4 verifier boundary, fixtures, fail-closed trust-registry checks, a v4-required final-policy gate, optional draft FN-DSA/Falcon-1024 verify-only handling, and a V4.9-J canonical-order and receipt-wide preflight implementation.
 
-Remaining later phases include the V4.8H-E full integration and negative matrix lock, compatibility notes for Adaptive Core and AI Gateway, final proof pack, release status docs, and final release gate.
+Later controlled integration and release phases remain. Final public release claims require the V4.10 proof pack, release-status documentation, and the final release gate.
