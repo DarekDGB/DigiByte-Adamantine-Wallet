@@ -1,15 +1,15 @@
 # AdamantineOS Shield v4 Test Matrix
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.8H-D FN-DSA verify-only lock
+Status: Shield v4 V4.9-J canonical signature-bundle-order verifier lock
 Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests, and real-backend verifier interface proofs
 
 ## 1. Current Shield v4 test files
 
 | Area | Test file | Purpose |
 | --- | --- | --- |
-| Contract and fixtures | `tests/contracts/test_shield_orchestrator_receipt_v4_contract.py` | Locks Shield v4 receipt shape, hashes, component verdict shape, downgrade rejection, and authority-bypass rejection. |
-| Verifier and trust registry | `tests/integrations/test_shield_orchestrator_receipt_v4_verifier.py` | Locks verifier acceptance/rejection, trusted key registry behavior, replay rejection, freshness, key role binding, and signature-summary behavior. |
+| Contract and fixtures | `tests/contracts/test_shield_orchestrator_receipt_v4_contract.py` | Locks Shield v4 receipt shape, hashes, component verdict shape, canonical signature-bundle order, downgrade rejection, and authority-bypass rejection. |
+| Verifier and trust registry | `tests/integrations/test_shield_orchestrator_receipt_v4_verifier.py` | Locks verifier acceptance/rejection, receipt-wide preflight, trusted key registry behavior, replay rejection, freshness, key role binding, and signature-summary behavior. |
 | Final policy v4-required mode | `tests/policy/test_final_policy_engine_shield_v4_required.py` | Locks AdamantineOS final policy enforcement when `shield_v4_required=True`. |
 | Documentation lock | `tests/test_adamantineos_shield_v4_docs_lock.py` | Locks required Shield v4 documentation and boundary wording. |
 | Real backend interface contract | `tests/integrations/test_shield_v4_real_crypto_backend_contract.py` | Locks real verifier backend input validation, `b64u:` material, strict bool returns, and fail-closed backend exception behavior. |
@@ -17,7 +17,7 @@ Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests
 | V4.8G real-backend interface integration | `tests/integrations/test_shield_v4_real_backend_integration_hardening.py` | Locks real-backend interface wiring with deterministic backends, test-only fallback rejection, tamper rejection, and evidence-only AdamantineOS behavior. |
 | V4.8G live liboqs gated proof | `tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py` | Skipped by default; in a dedicated `SHIELD_V4_REAL_OQS=1` job with installed `oqs`/liboqs, proves live `ML-DSA-65` verify-only behavior and wrong-length fail-closed handling. |
 | V4.8G-R4 live liboqs full-receipt proof | `tests/integrations/test_shield_v48g_real_oqs_full_chain.py` | Skipped by default; in the dedicated real-OQS job, injects live liboqs ML-DSA signatures into all component verdicts plus the Orchestrator receipt and verifies the full receipt through AdamantineOS. |
-| V4.8H-D FN-DSA optional evidence | `tests/integrations/test_shield_v48h_fn_dsa_optional_evidence.py` | Locks AdamantineOS verify-only handling for optional FN-DSA/Falcon-1024 evidence, including cannot-rescue, wrong-role, duplicate, splice, unsupported-profile, and component-summary drift negatives. |
+| V4.8H-D FN-DSA optional evidence and V4.9-J order preflight | `tests/integrations/test_shield_v48h_fn_dsa_optional_evidence.py` | Locks optional draft FN-DSA/Falcon-1024 evidence, no rescue, canonical order, required presence, whole-bundle structural preflight, and zero trust/crypto calls for preflight failures. |
 | V4.8H-D FN-DSA signed-message KAT | `tests/integrations/test_shield_v48h_fn_dsa_signed_message_kat.py` | Locks the standard-profile-bound real-crypto message bytes for draft Falcon-1024 FN-DSA evidence. |
 
 ## 2. Contract matrix
@@ -34,6 +34,7 @@ Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests
 | Context hash mismatch | Rejected fail-closed | `test_shield_v4_contract_rejects_context_and_receipt_hash_mismatches` |
 | Receipt hash mismatch | Rejected fail-closed | `test_shield_v4_contract_rejects_context_and_receipt_hash_mismatches` |
 | Signed payload hash mismatch | Rejected fail-closed | `test_shield_v4_contract_rejects_context_and_receipt_hash_mismatches` |
+| Reversed required or optional-first/interleaved signature order | Rejected fail-closed without sorting or repair | `test_v49j_contract_rejects_noncanonical_signature_bundle_order` |
 | Forbidden authority fields | Rejected fail-closed | `test_shield_v4_contract_rejects_handoff_authority_and_non_allow_handoff_true` |
 | Non-ALLOW receipt with `handoff_allowed=true` | Rejected fail-closed | `test_shield_v4_contract_rejects_handoff_authority_and_non_allow_handoff_true` |
 | Missing or invalid component signature results | Rejected fail-closed | `test_shield_v4_contract_rejects_component_result_errors` |
@@ -55,8 +56,8 @@ Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests
 | Wrong key role | Rejected fail-closed | verifier key-role tests |
 | Tampered Orchestrator signature | Rejected fail-closed | verifier signature tests |
 | Tampered component signature | Rejected fail-closed | verifier signature tests |
-| Real-backend verifier exception | Rejected fail-closed through Shield v4 error hierarchy | `test_shield_v48g_verifier_catches_signature_backend_exceptions_and_non_bool_results` |
-| Truthy non-bool verifier result | Rejected fail-closed; no truthy coercion | `test_shield_v48g_real_backend_truthy_non_bool_result_rejected` |
+| Real-backend verifier exception | Rejected fail-closed through Shield v4 error hierarchy | `test_v48g_shield_v4_verifier_wraps_signature_verifier_exceptions_fail_closed` |
+| Truthy non-bool verifier result | Rejected fail-closed; no truthy coercion | `test_v48g_shield_v4_verifier_rejects_truthy_non_bool_signature_verifier_result` |
 | Unconfigured signature backend | Rejected fail-closed as `SIGNATURE_BACKEND_NOT_CONFIGURED` | `test_v48g_r4_shield_v4_verifier_requires_explicit_signature_backend` and `test_v48g_r4_adamantineos_rejects_unconfigured_signature_backend_for_real_fixture` |
 | Embedded `component_signature_results` drift from independent AdamantineOS verification | Rejected fail-closed | `test_v48g_r4_shield_v4_verifier_cross_checks_component_signature_results` |
 | FN-DSA absent with required signatures valid | Accepted as evidence | `test_v48h_adamantineos_accepts_fn_dsa_absent_and_valid_fn_dsa_present` |
@@ -67,6 +68,13 @@ Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests
 | FN-DSA unsupported or flipped standard profile | Rejected fail-closed | `test_v48h_unsupported_or_flipped_fn_dsa_standard_profile_is_denied` |
 | FN-DSA splice or duplicate algorithm entry | Rejected fail-closed | `test_v48h_fn_dsa_cross_receipt_or_cross_role_splice_is_denied`, `test_v48h_duplicate_fn_dsa_entry_is_denied` |
 | FN-DSA summary falsely claimed or hidden | Rejected fail-closed | `test_v48h_component_signature_results_cannot_falsely_claim_or_hide_fn_dsa` |
+| Reversed required order in raw Orchestrator or embedded component bundle | Rejected during whole-receipt preflight before trust or crypto | `test_v49j_adamantineos_rejects_noncanonical_receipt_and_component_order_before_trust_or_crypto` |
+| Any of the five noncanonical three-entry permutations in raw Orchestrator or embedded component bundle | Rejected during whole-receipt preflight before trust or crypto | `test_v49j_adamantineos_rejects_noncanonical_receipt_and_component_order_before_trust_or_crypto` |
+| Duplicate key identity in the top bundle or last embedded component | Rejected during receipt-wide preflight before trust or crypto | `test_v49j_receipt_wide_preflight_rejects_duplicate_key_before_trust_or_crypto` |
+| Noncanonical direct private-bundle input | Rejected before trust or crypto | `test_v49j_direct_bundle_verifier_rejects_noncanonical_order_before_trust_or_crypto` |
+| Any nonempty supported subset missing a required algorithm | Rejected before trust or crypto | `test_v49j_direct_bundle_verifier_rejects_missing_required_before_trust_or_crypto` |
+| Late malformed, duplicate, wrong-profile, wrong-domain, or wrong-hash entry | Rejected after full structural preflight and before trust or crypto | `test_v49j_direct_bundle_verifier_completes_structural_preflight_before_trust_or_crypto` |
+| Caller mutates the original bundle after preflight begins | Prepared outer entry snapshots remain authoritative for the cryptographic pass | `test_v49j_direct_bundle_verifier_uses_preflight_snapshots_during_crypto` |
 
 ## 4. Final policy v4-required matrix
 
@@ -99,7 +107,7 @@ FN-DSA/Falcon must never be treated as ML-DSA and must never override failure of
 | Proof level | CI behavior | Claim allowed |
 | --- | --- | --- |
 | Default package CI | Uses deterministic verifier backends and fake OQS modules | Proves interface contract, fail-closed behavior, parser hardening, and AdamantineOS evidence-only integration. |
-| Gated live liboqs job | Requires `SHIELD_V4_REAL_OQS=1`, installed `oqs`/liboqs, JUnit output, and `scripts/assert_real_oqs_junit_not_skipped.py` with `skipped == 0` | Proves live liboqs `ML-DSA-65` verification through the AdamantineOS verify-only backend and the V4.8G-R4 full-receipt ML-DSA path. |
+| Gated live liboqs job | Requires `SHIELD_V4_REAL_OQS=1`, `SHIELD_V4_REAL_OQS_FALCON=1`, installed `oqs`/liboqs, JUnit output, and the exact five-node guard with `--min-tests 5` and `skipped == 0` | Proves live `ML-DSA-65` and Falcon-1024 positive verification, an ML-DSA cryptographic tamper negative, and an embedded-Falcon receipt-integrity tamper negative through the AdamantineOS verify-only boundary. |
 | V4.10 release gate | Final multi-repo proof pack | Release-grade public claims about real-backend proof. |
 
 AdamantineOS remains verify-only for this path. The real-backend adapter has no `sign_message`, no private-key resolver, and no private-key reference.
@@ -119,6 +127,18 @@ The following remain important for the full Shield v4 release gate and multi-rep
 - replay/stale receipt rejected by injected replay state across the integration harness
 
 V4.8G covers the real-backend interface-contract hardening and gated live-liboqs ML-DSA proof hooks. V4.8H-D covers AdamantineOS verify-only handling for optional FN-DSA/Falcon-1024 evidence. Final public release claims remain gated by the V4.10 proof pack and live workflow evidence with `skipped == 0` where applicable.
+
+## V4.9-J canonical signature-bundle order
+
+V4.9-J requires every raw Orchestrator receipt signature bundle and every embedded component signature bundle to use this exact order:
+
+1. `classical-ed25519`
+2. `ml-dsa`
+3. optional `fn-dsa`, when present
+
+The contract and verifier never sort or repair received evidence. All embedded bundles and the top-level bundle complete structural, profile, hash, domain, order, required-presence, duplicate-algorithm, and duplicate-key preflight before the first trust-registry lookup or cryptographic verifier call. The private bundle verifier repeats the same preflight for direct internal use.
+
+Required `classical-ed25519` plus `ml-dsa` strict AND remains unchanged. The optional last entry is draft FN-DSA/Falcon-1024 evidence only. Optional-present-invalid is fatal and cannot rescue either required signature path. No public API, schema, policy, profile, domain tag, component role, transaction authority, broadcast authority, consensus rule, or AdamantineOS final-policy boundary changes in V4.9-J.
 
 ## V4.8H-E full hybrid matrix
 
