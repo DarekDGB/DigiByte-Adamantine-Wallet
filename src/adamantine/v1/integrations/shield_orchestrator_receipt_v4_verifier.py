@@ -14,10 +14,16 @@ from adamantine.v1.contracts.shield_orchestrator_receipt_v4 import (
     COMPONENT_VERDICT_DOMAIN,
     ORCHESTRATOR_RECEIPT_DOMAIN,
     REQUIRED_ALGORITHMS,
+    SIGNATURE_BUNDLE_FIELDS,
+    SIGNATURE_BUNDLE_SCHEMA_VERSION,
+    SIGNATURE_ENTRY_FIELDS,
+    SIGNATURE_POLICY,
     ShieldV4ReceiptAuthorityBypassError,
     ShieldV4ReceiptContractError,
     ShieldV4ReceiptDowngradeError,
     ShieldV4ReceiptHashMismatchError,
+    _require_hash as _require_contract_hash,
+    _require_signature_encoding,
     validate_shield_v4_receipt_contract,
 )
 
@@ -101,6 +107,37 @@ class _VerifierRejection(Exception):
     state: ShieldV4ReceiptVerificationState
     reason_id: ReasonId
     message: str
+
+
+@dataclass(frozen=True)
+class _PreparedSignatureEntry:
+    entry: Mapping[str, Any]
+    algorithm: str
+    standard_profile: str
+    key_id: str
+    key_version: int
+
+
+@dataclass(frozen=True)
+class _PreparedSignatureBundle:
+    entries: tuple[_PreparedSignatureEntry, ...]
+
+
+@dataclass(frozen=True)
+class _PreparedComponentBundle:
+    component_id: str
+    component_role: str
+    artifact_not_before: str
+    artifact_not_after: str
+    bundle: _PreparedSignatureBundle
+
+
+@dataclass(frozen=True)
+class _PreparedReceiptBundles:
+    components: tuple[_PreparedComponentBundle, ...]
+    orchestrator: _PreparedSignatureBundle
+    orchestrator_not_before: str
+    orchestrator_not_after: str
 
 
 def _string_or_none(payload: Any, key: str) -> str | None:
@@ -352,11 +389,143 @@ def _verify_test_only_signature(entry: Mapping[str, Any], key: TrustedShieldV4Ke
 SignatureVerifier = Callable[[Mapping[str, Any], TrustedShieldV4Key], bool]
 
 
-def _verify_bundle(
+def _signature_policy_rejection(message: str) -> _VerifierRejection:
+    return _VerifierRejection(
+        ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_POLICY,
+        ReasonId.EQC_INVALID_SHIELD_BUNDLE,
+        message,
+    )
+
+
+def _preflight_bundle(
     bundle: Mapping[str, Any],
     *,
     expected_signed_payload_hash: str,
     expected_domain_tag: str,
+) -> _PreparedSignatureBundle:
+    if not isinstance(bundle, Mapping):
+        raise _signature_policy_rejection("signature bundle must be mapping")
+    try:
+        bundle_snapshot = dict(bundle)
+    except Exception as exc:
+        raise _signature_policy_rejection("signature bundle snapshot failed") from exc
+    if set(bundle_snapshot) != SIGNATURE_BUNDLE_FIELDS:
+        raise _signature_policy_rejection("signature bundle fields must match required schema")
+    if bundle_snapshot["schema_version"] != SIGNATURE_BUNDLE_SCHEMA_VERSION:
+        raise _signature_policy_rejection("signature bundle schema mismatch")
+    if bundle_snapshot["policy_version"] != SIGNATURE_POLICY:
+        raise _signature_policy_rejection("signature bundle policy mismatch")
+    raw_signatures = bundle_snapshot["signatures"]
+    if not isinstance(raw_signatures, list) or not raw_signatures:
+        raise _signature_policy_rejection("signature bundle signatures must be non-empty list")
+    try:
+        signatures = tuple(raw_signatures)
+    except Exception as exc:
+        raise _signature_policy_rejection("signature list snapshot failed") from exc
+    try:
+        expected_hash = _require_contract_hash(
+            expected_signed_payload_hash,
+            field="expected_signed_payload_hash",
+        )
+    except ShieldV4ReceiptContractError as exc:
+        raise _signature_policy_rejection(str(exc)) from exc
+    expected_domain = _require_non_empty_str(expected_domain_tag, field="expected_domain_tag")
+    seen_algorithms: set[str] = set()
+    seen_keys: set[tuple[str, int]] = set()
+    prepared_entries: list[_PreparedSignatureEntry] = []
+    algorithm_sequence: list[str] = []
+    for raw_entry in signatures:
+        if not isinstance(raw_entry, Mapping):
+            raise _signature_policy_rejection("signature entry must be mapping")
+        try:
+            entry = dict(raw_entry)
+        except Exception as exc:
+            raise _signature_policy_rejection("signature entry snapshot failed") from exc
+        if set(entry) != SIGNATURE_ENTRY_FIELDS:
+            raise _signature_policy_rejection("signature entry fields must match required schema")
+        algorithm = _require_non_empty_str(entry["algorithm"], field="algorithm")
+        if algorithm not in ALLOWED_ALGORITHMS:
+            raise _signature_policy_rejection("unsupported Shield v4 signature algorithm")
+        if algorithm in seen_algorithms:
+            raise _signature_policy_rejection("duplicate signature algorithm")
+        seen_algorithms.add(algorithm)
+        algorithm_sequence.append(algorithm)
+        standard_profile = _require_supported_standard_profile_for_signature(
+            algorithm=algorithm,
+            standard_profile=entry["standard_profile"],
+        )
+        key_id = _require_non_empty_str(entry["key_id"], field="key_id")
+        key_version = _require_positive_int(entry["key_version"], field="key_version")
+        key_identity = (key_id, key_version)
+        if key_identity in seen_keys:
+            raise _signature_policy_rejection("duplicate signature key entry")
+        seen_keys.add(key_identity)
+        try:
+            entry_hash = _require_contract_hash(
+                entry["signed_payload_hash"],
+                field="signed_payload_hash",
+            )
+            _require_signature_encoding(entry["signature"], field="signature")
+        except ShieldV4ReceiptContractError as exc:
+            raise _signature_policy_rejection(str(exc)) from exc
+        if entry_hash != expected_hash:
+            raise _VerifierRejection(
+                ShieldV4ReceiptVerificationState.REJECTED_TAMPERED_RECEIPT,
+                ReasonId.EQC_INVALID_SHIELD_BUNDLE,
+                "signature hash mismatch",
+            )
+        if _require_non_empty_str(entry["domain_tag"], field="domain_tag") != expected_domain:
+            raise _signature_policy_rejection("signature domain mismatch")
+        prepared_entries.append(
+            _PreparedSignatureEntry(
+                entry=entry,
+                algorithm=algorithm,
+                standard_profile=standard_profile,
+                key_id=key_id,
+                key_version=key_version,
+            )
+        )
+    canonical_sequence = [algorithm for algorithm in ALLOWED_ALGORITHMS if algorithm in seen_algorithms]
+    if algorithm_sequence != canonical_sequence:
+        raise _signature_policy_rejection("signature algorithms must use canonical policy order")
+    missing = set(REQUIRED_ALGORITHMS) - seen_algorithms
+    if missing:
+        raise _signature_policy_rejection("signature policy requirements not satisfied")
+    return _PreparedSignatureBundle(tuple(prepared_entries))
+
+
+def _preflight_receipt_bundles(receipt: Mapping[str, Any]) -> _PreparedReceiptBundles:
+    components: list[_PreparedComponentBundle] = []
+    for component in receipt["component_verdicts"]:
+        component_id = str(component["component_id"])
+        components.append(
+            _PreparedComponentBundle(
+                component_id=component_id,
+                component_role=COMPONENT_ROLES[component_id],
+                artifact_not_before=str(component["not_before"]),
+                artifact_not_after=str(component["not_after"]),
+                bundle=_preflight_bundle(
+                    component["signature_bundle"],
+                    expected_signed_payload_hash=str(component["signed_payload_hash"]),
+                    expected_domain_tag=COMPONENT_VERDICT_DOMAIN,
+                ),
+            )
+        )
+    return _PreparedReceiptBundles(
+        components=tuple(components),
+        orchestrator=_preflight_bundle(
+            receipt["signature_bundle"],
+            expected_signed_payload_hash=str(receipt["signed_payload_hash"]),
+            expected_domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN,
+        ),
+        orchestrator_not_before=str(receipt["not_before"]),
+        orchestrator_not_after=str(receipt["not_after"]),
+    )
+
+
+def _verify_prepared_bundle(
+    prepared_bundle: _PreparedSignatureBundle,
+    *,
     required_role: str,
     registry: TrustedShieldV4KeyRegistry,
     verification_time: str,
@@ -364,57 +533,20 @@ def _verify_bundle(
     artifact_not_after: str,
     signature_verifier: SignatureVerifier,
 ) -> dict[str, Any]:
-    seen_algorithms: set[str] = set()
-    seen_keys: set[tuple[str, int]] = set()
     results: list[dict[str, Any]] = []
-    signatures = bundle["signatures"]
-    for entry in signatures:
-        algorithm = str(entry["algorithm"])
-        if algorithm in seen_algorithms:
-            raise _VerifierRejection(
-                ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_POLICY,
-                ReasonId.EQC_INVALID_SHIELD_BUNDLE,
-                "duplicate signature algorithm",
-            )
-        seen_algorithms.add(algorithm)
-        standard_profile = _require_supported_standard_profile_for_signature(
-            algorithm=algorithm,
-            standard_profile=entry.get("standard_profile"),
-        )
-        key_id = str(entry["key_id"])
-        key_version = int(entry["key_version"])
-        key_identity = (key_id, key_version)
-        if key_identity in seen_keys:
-            raise _VerifierRejection(
-                ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_POLICY,
-                ReasonId.EQC_INVALID_SHIELD_BUNDLE,
-                "duplicate signature key entry",
-            )
-        seen_keys.add(key_identity)
-        if entry["signed_payload_hash"] != expected_signed_payload_hash:
-            raise _VerifierRejection(
-                ShieldV4ReceiptVerificationState.REJECTED_TAMPERED_RECEIPT,
-                ReasonId.EQC_INVALID_SHIELD_BUNDLE,
-                "signature hash mismatch",
-            )
-        if entry["domain_tag"] != expected_domain_tag:
-            raise _VerifierRejection(
-                ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_POLICY,
-                ReasonId.EQC_INVALID_SHIELD_BUNDLE,
-                "signature domain mismatch",
-            )
+    for prepared in prepared_bundle.entries:
         key = _find_key(
             registry,
             role=required_role,
-            key_id=key_id,
-            key_version=key_version,
-            algorithm=algorithm,
+            key_id=prepared.key_id,
+            key_version=prepared.key_version,
+            algorithm=prepared.algorithm,
             verification_time=verification_time,
             artifact_not_before=artifact_not_before,
             artifact_not_after=artifact_not_after,
         )
         try:
-            verified = signature_verifier(entry, key)
+            verified = signature_verifier(prepared.entry, key)
         except Exception as exc:
             raise _VerifierRejection(
                 ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_INVALID,
@@ -435,19 +567,12 @@ def _verify_bundle(
             )
         results.append(
             {
-                "algorithm": algorithm,
-                "standard_profile": standard_profile,
-                "key_id": key_id,
-                "key_version": key_version,
+                "algorithm": prepared.algorithm,
+                "standard_profile": prepared.standard_profile,
+                "key_id": prepared.key_id,
+                "key_version": prepared.key_version,
                 "verified": True,
             }
-        )
-    missing = set(REQUIRED_ALGORITHMS) - seen_algorithms
-    if missing:
-        raise _VerifierRejection(
-            ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_POLICY,
-            ReasonId.EQC_INVALID_SHIELD_BUNDLE,
-            "signature policy requirements not satisfied",
         )
     return {
         "required_algorithms": list(REQUIRED_ALGORITHMS),
@@ -455,6 +580,34 @@ def _verify_bundle(
         "verified_standard_profiles": [r["standard_profile"] for r in results],
         "results": results,
     }
+
+
+def _verify_bundle(
+    bundle: Mapping[str, Any],
+    *,
+    expected_signed_payload_hash: str,
+    expected_domain_tag: str,
+    required_role: str,
+    registry: TrustedShieldV4KeyRegistry,
+    verification_time: str,
+    artifact_not_before: str,
+    artifact_not_after: str,
+    signature_verifier: SignatureVerifier,
+) -> dict[str, Any]:
+    prepared_bundle = _preflight_bundle(
+        bundle,
+        expected_signed_payload_hash=expected_signed_payload_hash,
+        expected_domain_tag=expected_domain_tag,
+    )
+    return _verify_prepared_bundle(
+        prepared_bundle,
+        required_role=required_role,
+        registry=registry,
+        verification_time=verification_time,
+        artifact_not_before=artifact_not_before,
+        artifact_not_after=artifact_not_after,
+        signature_verifier=signature_verifier,
+    )
 
 
 def _enforce_registry_versions(
@@ -512,27 +665,30 @@ def _enforce_freshness(receipt: Mapping[str, Any], *, verification_time: str) ->
 
 
 def _verify_component_bundles(
-    receipt: Mapping[str, Any],
+    prepared_receipt: _PreparedReceiptBundles,
     *,
     registry: TrustedShieldV4KeyRegistry,
     verification_time: str,
     signature_verifier: SignatureVerifier,
 ) -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
-    for component in receipt["component_verdicts"]:
-        role = COMPONENT_ROLES[str(component["component_id"])]
-        verification = _verify_bundle(
-            component["signature_bundle"],
-            expected_signed_payload_hash=str(component["signed_payload_hash"]),
-            expected_domain_tag=COMPONENT_VERDICT_DOMAIN,
-            required_role=role,
+    for component in prepared_receipt.components:
+        verification = _verify_prepared_bundle(
+            component.bundle,
+            required_role=component.component_role,
             registry=registry,
             verification_time=verification_time,
-            artifact_not_before=str(component["not_before"]),
-            artifact_not_after=str(component["not_after"]),
+            artifact_not_before=component.artifact_not_before,
+            artifact_not_after=component.artifact_not_after,
             signature_verifier=signature_verifier,
         )
-        summaries.append({"component_id": component["component_id"], "component_role": role, **verification})
+        summaries.append(
+            {
+                "component_id": component.component_id,
+                "component_role": component.component_role,
+                **verification,
+            }
+        )
     return summaries
 
 
@@ -673,25 +829,24 @@ def verify_shield_v4_orchestrator_receipt(
         )
 
     try:
+        prepared_receipt = _preflight_receipt_bundles(valid)
         registry = load_trusted_shield_v4_key_registry(trusted_key_registry)
         _enforce_registry_versions(valid, registry=registry, minimum_key_registry_version=minimum_key_registry_version)
         _enforce_freshness(valid, verification_time=verification_time)
         component_summaries = _verify_component_bundles(
-            valid,
+            prepared_receipt,
             registry=registry,
             verification_time=verification_time,
             signature_verifier=signature_verifier,
         )
         _cross_check_component_signature_results(valid, component_summaries)
-        orchestrator_summary = _verify_bundle(
-            valid["signature_bundle"],
-            expected_signed_payload_hash=str(valid["signed_payload_hash"]),
-            expected_domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN,
+        orchestrator_summary = _verify_prepared_bundle(
+            prepared_receipt.orchestrator,
             required_role=ORCHESTRATOR_ROLE,
             registry=registry,
             verification_time=verification_time,
-            artifact_not_before=str(valid["not_before"]),
-            artifact_not_after=str(valid["not_after"]),
+            artifact_not_before=prepared_receipt.orchestrator_not_before,
+            artifact_not_after=prepared_receipt.orchestrator_not_after,
             signature_verifier=signature_verifier,
         )
     except _VerifierRejection as exc:
