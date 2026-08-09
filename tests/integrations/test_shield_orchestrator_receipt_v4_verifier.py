@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from typing import Any
 
+import adamantine.v1.integrations.shield_orchestrator_receipt_v4_verifier as verifier_module
 from adamantine.v1.contracts.reason_ids import ReasonId
 from adamantine.v1.contracts.shield_orchestrator_receipt_v4 import (
     COMPONENT_ROLES,
@@ -330,6 +331,40 @@ def test_shield_v4_verifier_rejects_signature_failures() -> None:
     bad_component_signature["component_verdicts"][0]["signature_bundle"]["signatures"][0]["signature"] = "0" * 64
     sign_receipt(bad_component_signature)
     assert verify(bad_component_signature).state == ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_INVALID
+
+
+@pytest.mark.parametrize("bundle_target", ("orchestrator", "last_component"))
+def test_v49j_receipt_wide_preflight_rejects_duplicate_key_before_trust_or_crypto(
+    bundle_target: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = copy.deepcopy(load_fixture("valid_allow_signed_receipt.json"))
+    if bundle_target == "orchestrator":
+        signatures = receipt["signature_bundle"]["signatures"]
+    else:
+        signatures = receipt["component_verdicts"][-1]["signature_bundle"]["signatures"]
+    signatures[1]["key_id"] = signatures[0]["key_id"]
+    signatures[1]["key_version"] = signatures[0]["key_version"]
+    if bundle_target == "last_component":
+        sign_receipt(receipt)
+
+    calls = {"trust": 0, "crypto": 0}
+
+    def forbidden_key_lookup(*_args, **_kwargs):
+        calls["trust"] += 1
+        raise AssertionError("trust lookup must not run before whole-receipt preflight")
+
+    def forbidden_crypto(_entry, _key):
+        calls["crypto"] += 1
+        raise AssertionError("crypto must not run before whole-receipt preflight")
+
+    monkeypatch.setattr(verifier_module, "_find_key", forbidden_key_lookup)
+    result = verify(receipt, signature_verifier=forbidden_crypto)
+
+    assert result.state == ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_POLICY
+    assert result.dominant_reason_ids == ("duplicate signature key entry",)
+    assert result.final_approval is False
+    assert calls == {"trust": 0, "crypto": 0}
 
 
 def test_shield_v4_verifier_internal_registry_guards_are_fail_closed() -> None:
