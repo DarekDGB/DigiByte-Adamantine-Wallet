@@ -307,6 +307,7 @@ def _validate_signature_bundle_shape(
         raise ShieldV4ReceiptContractError("signature bundle signatures must be non-empty list")
     expected_hash = _require_hash(expected_signed_payload_hash, field="expected_signed_payload_hash")
     seen_algorithms: set[str] = set()
+    algorithm_sequence: list[str] = []
     for entry in bundle["signatures"]:
         if not isinstance(entry, dict):
             raise ShieldV4ReceiptContractError("signature entry must be dict")
@@ -318,6 +319,7 @@ def _validate_signature_bundle_shape(
         if algorithm in seen_algorithms:
             raise ShieldV4ReceiptContractError("duplicate signature algorithm")
         seen_algorithms.add(algorithm)
+        algorithm_sequence.append(algorithm)
         _require_supported_standard_profile(
             algorithm=algorithm,
             standard_profile=entry["standard_profile"],
@@ -329,6 +331,9 @@ def _validate_signature_bundle_shape(
         if _require_non_empty_str(entry["domain_tag"], field="domain_tag") != expected_domain_tag:
             raise ShieldV4ReceiptContractError("signature domain tag mismatch")
         _require_signature_encoding(entry["signature"], field="signature")
+    canonical_sequence = [algorithm for algorithm in ALLOWED_ALGORITHMS if algorithm in seen_algorithms]
+    if algorithm_sequence != canonical_sequence:
+        raise ShieldV4ReceiptContractError("signature algorithms must use canonical policy order")
     missing = set(REQUIRED_ALGORITHMS) - seen_algorithms
     if missing:
         raise ShieldV4ReceiptContractError("signature policy requirements not satisfied")
