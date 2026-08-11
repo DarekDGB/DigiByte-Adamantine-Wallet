@@ -1,8 +1,8 @@
 # AdamantineOS Shield v4 PQC Verifier
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.9-J canonical signature-bundle-order verifier lock
-Scope: AdamantineOS-side Shield v4 verifier contract, not a Shield v4 release claim
+Status: Shield v4 V4.9-L independent external-contract consumer proof lock
+Scope: AdamantineOS-side Shield v4 verifier and external-contract consumer boundary, not a Shield v4 release claim
 
 ## 1. Boundary statement
 
@@ -25,8 +25,23 @@ The Shield v4 AdamantineOS boundary is currently split across these files:
 - `src/adamantine/v1/fixtures/shield_v4/v3_downgrade_rejected.json`
 - `src/adamantine/v1/fixtures/shield_v4/full_multi_repo_v4_fn_dsa_allow_flow.json`
 - `src/adamantine/v1/fixtures/shield_v4/fn_dsa_signed_message_draft_profile_kat.json`
+- `src/adamantine/v1/fixtures/shield_v4/external_verifier_contract_v1_kat.json`
 
 Fixture tests explicitly inject the TEST-ONLY deterministic signature verifier. The public verifier API has no default signature backend, and real backends remain verify-only. Production PQC backend wiring must preserve the same schema, canonicalization, domain separation, policy, trust-registry, standard-profile binding, and fail-closed behavior.
+
+### 2.1 Independent external-contract consumer proof
+
+AdamantineOS pins a byte-identical copy of the Orchestrator Shield v4 external-verifier fixture at:
+
+- `src/adamantine/v1/fixtures/shield_v4/external_verifier_contract_v1_kat.json`
+
+Its SHA-256 is `308b9aadd993cf07665a125c4294d8e22cbe3f747419e346e104f127093e951f`. The upstream package is defined by `docs/v4/SHIELD_V4_EXTERNAL_VERIFICATION_PACKAGE_V1.json` in DGB-Quantum-Shield-Orchestrator. That self-excluding package manifest, not the older AdamantineOS foundation contract manifest, controls this V4.9 external contract.
+
+The fixture contains verifier-controlled TEST-ONLY trust input. Its registry is never receipt authority. `standard_profile` is authenticated in each signature entry and checked against the verifier allow-list; it is not a trust-registry-entry field. AdamantineOS independently re-verifies the component and Orchestrator bundles rather than trusting the signed `component_signature_results` summary.
+
+The positive result is accepted as evidence only and always retains `final_approval=false`. Replay, stale evidence, revoked keys, registry rollback, denylisted receipt hashes, wrong context, unsupported profiles, noncanonical bundle order, weakened policy, and receipt-supplied trust are rejected fail-closed.
+
+A wallet consumes only AdamantineOS final output. It must never treat the raw Orchestrator receipt, the fixture's expected result, or upstream `handoff_allowed` evidence as final execution authority.
 
 ## 3. Required Shield v4 receipt contract
 
@@ -199,6 +214,7 @@ The current AdamantineOS Shield v4 tests are:
 - `tests/integrations/test_shield_orchestrator_receipt_v4_verifier.py`
 - `tests/integrations/test_shield_v48h_fn_dsa_optional_evidence.py`
 - `tests/integrations/test_shield_v48h_fn_dsa_signed_message_kat.py`
+- `tests/integrations/test_shield_v49_external_verification_contract.py`
 - `tests/policy/test_final_policy_engine_shield_v4_required.py`
 - `tests/test_adamantineos_shield_v4_docs_lock.py`
 
@@ -208,6 +224,6 @@ These tests lock contract validation, canonical signature-bundle order, whole-re
 
 This document does not claim Shield v4 is released.
 
-Current status: AdamantineOS has a Shield v4 verifier boundary, fixtures, fail-closed trust-registry checks, a v4-required final-policy gate, optional draft FN-DSA/Falcon-1024 verify-only handling, and a V4.9-J canonical-order and receipt-wide preflight implementation.
+Current status: AdamantineOS has a Shield v4 verifier boundary, fixtures, fail-closed trust-registry checks, a v4-required final-policy gate, optional draft FN-DSA/Falcon-1024 verify-only handling, a V4.9-J canonical-order and receipt-wide preflight implementation, and a V4.9-L independent external-contract consumer proof.
 
 Later controlled integration and release phases remain. Final public release claims require the V4.10 proof pack, release-status documentation, and the final release gate.
