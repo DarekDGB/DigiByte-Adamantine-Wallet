@@ -17,6 +17,12 @@ KNOWN_REVIEW = (
     / "RED_TEAM"
     / "ADAMANTINEOS_MILESTONE_18_FINAL_CLOSURE_REVIEW.docx"
 )
+KNOWN_REVIEW_MARKDOWN = (
+    ROOT
+    / "docs"
+    / "RED_TEAM"
+    / "ADAMANTINEOS_MILESTONE_18_FINAL_CLOSURE_REVIEW.md"
+)
 NAMESPACES = {
     "cp": "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
     "dc": "http://purl.org/dc/elements/1.1/",
@@ -100,3 +106,17 @@ def test_v49j_all_docx_core_attribution_is_darekdgb() -> None:
             raise AssertionError(
                 f"{relative_path}: lastModifiedBy must equal {EXPECTED_AUTHOR}"
             )
+
+
+def test_v49m_closure_review_markdown_is_ascii_safe_and_darekdgb_only() -> None:
+    payload = KNOWN_REVIEW_MARKDOWN.read_bytes()
+    text = payload.decode("utf-8", errors="strict")
+
+    assert payload.endswith(b"\n")
+    assert not payload.startswith(b"\xef\xbb\xbf")
+    assert text.isascii()
+    assert text == unicodedata.normalize("NFC", text)
+    assert "\x00" not in text
+    assert "\r" not in text
+    assert text.count(f"| Author attribution | {EXPECTED_AUTHOR} |") == 1
+    assert text.count(f"| Reviewer | {EXPECTED_REVIEWER} |") == 1
