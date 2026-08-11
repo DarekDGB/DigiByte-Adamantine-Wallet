@@ -1,8 +1,8 @@
 # AdamantineOS Shield v4 Test Matrix
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.9-J canonical signature-bundle-order verifier lock
-Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests, and real-backend verifier interface proofs
+Status: Shield v4 V4.9-L independent external-contract consumer proof lock
+Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, final-policy v4-required tests, and real-backend verifier interface proofs
 
 ## 1. Current Shield v4 test files
 
@@ -12,6 +12,7 @@ Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests
 | Verifier and trust registry | `tests/integrations/test_shield_orchestrator_receipt_v4_verifier.py` | Locks verifier acceptance/rejection, receipt-wide preflight, trusted key registry behavior, replay rejection, freshness, key role binding, and signature-summary behavior. |
 | Final policy v4-required mode | `tests/policy/test_final_policy_engine_shield_v4_required.py` | Locks AdamantineOS final policy enforcement when `shield_v4_required=True`. |
 | Documentation lock | `tests/test_adamantineos_shield_v4_docs_lock.py` | Locks required Shield v4 documentation and boundary wording. |
+| V4.9-L external-verifier contract consumer | `tests/integrations/test_shield_v49_external_verification_contract.py` | Pins the byte-identical Orchestrator V1 fixture and locks independent AdamantineOS positive, negative, trust-provenance, and evidence-only verification. |
 | Real backend interface contract | `tests/integrations/test_shield_v4_real_crypto_backend_contract.py` | Locks real verifier backend input validation, `b64u:` material, strict bool returns, and fail-closed backend exception behavior. |
 | OQS ML-DSA adapter contract | `tests/integrations/test_shield_v4_oqs_mldsa_backend.py` | Locks optional OQS `ML-DSA-65` verify-only adapter behavior with deterministic fakes and native-exception wrapping. |
 | V4.8G real-backend interface integration | `tests/integrations/test_shield_v4_real_backend_integration_hardening.py` | Locks real-backend interface wiring with deterministic backends, test-only fallback rejection, tamper rejection, and evidence-only AdamantineOS behavior. |
@@ -75,6 +76,10 @@ Scope: AdamantineOS Shield v4 contract, verifier, final-policy v4-required tests
 | Any nonempty supported subset missing a required algorithm | Rejected before trust or crypto | `test_v49j_direct_bundle_verifier_rejects_missing_required_before_trust_or_crypto` |
 | Late malformed, duplicate, wrong-profile, wrong-domain, or wrong-hash entry | Rejected after full structural preflight and before trust or crypto | `test_v49j_direct_bundle_verifier_completes_structural_preflight_before_trust_or_crypto` |
 | Caller mutates the original bundle after preflight begins | Prepared outer entry snapshots remain authoritative for the cryptographic pass | `test_v49j_direct_bundle_verifier_uses_preflight_snapshots_during_crypto` |
+| Exact shared V1 external-verifier fixture | Accepted independently as evidence only with `final_approval=false` | `test_v49l_adamantineos_accepts_external_contract_as_evidence_only` |
+| External V1 replay, stale window, revoked key, registry rollback, or denylisted receipt hash | Rejected fail-closed without final authority | `test_v49l_external_contract_rejects_replay_stale_revoked_rollback_and_denylist` |
+| External V1 wrong context, unsupported profile, noncanonical order, or weakened policy | Rejected fail-closed | `test_v49l_external_contract_rejects_context_profile_order_and_weakened_policy` |
+| Receipt-supplied trust or verifier registry with untrusted key material | Rejected; registry remains verifier-controlled only | `test_v49l_external_contract_registry_is_verifier_controlled_only` |
 
 ## 4. Final policy v4-required matrix
 
@@ -139,6 +144,18 @@ V4.9-J requires every raw Orchestrator receipt signature bundle and every embedd
 The contract and verifier never sort or repair received evidence. All embedded bundles and the top-level bundle complete structural, profile, hash, domain, order, required-presence, duplicate-algorithm, and duplicate-key preflight before the first trust-registry lookup or cryptographic verifier call. The private bundle verifier repeats the same preflight for direct internal use.
 
 Required `classical-ed25519` plus `ml-dsa` strict AND remains unchanged. The optional last entry is draft FN-DSA/Falcon-1024 evidence only. Optional-present-invalid is fatal and cannot rescue either required signature path. No public API, schema, policy, profile, domain tag, component role, transaction authority, broadcast authority, consensus rule, or AdamantineOS final-policy boundary changes in V4.9-J.
+
+## V4.9-L independent external-contract consumer proof
+
+V4.9-L copies the Orchestrator `external_verifier_contract_v1_kat.json` fixture byte-for-byte and verifies it independently through the AdamantineOS Shield v4 verifier. The local copy must retain SHA-256 `308b9aadd993cf07665a125c4294d8e22cbe3f747419e346e104f127093e951f`.
+
+The positive case must reproduce the complete expected evidence result while retaining `final_approval=false`. The negative matrix covers replay, stale evidence, revoked trust, registry rollback, receipt denylisting, wrong context, unsupported profile, noncanonical signature order, weakened embedded policy, receipt-supplied trust, and verifier-controlled untrusted key material.
+
+The fixture's TEST-ONLY registry is verifier input only. `standard_profile` is authenticated in each signature entry and checked against the verifier allow-list; it is not a registry-entry field. AdamantineOS independently verifies raw receipt and component signatures and does not trust `component_signature_results` as authority.
+
+A wallet consumes only AdamantineOS final output. Raw Orchestrator evidence, the fixture's expected result, and `handoff_allowed` never become signing, broadcast, consensus, or execution authority.
+
+V4.9-L changes no runtime verifier, public API, schema, policy, algorithm, profile, domain tag, component role, dependency, package version, workflow, transaction authority, broadcast authority, consensus rule, or AdamantineOS final-policy boundary.
 
 ## V4.8H-E full hybrid matrix
 
