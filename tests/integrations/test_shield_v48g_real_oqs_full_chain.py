@@ -44,6 +44,11 @@ from adamantine.v1.integrations.shield_v4_real_crypto_backend import (  # noqa: 
     encode_binary_signature_material,
     make_real_crypto_signature_verifier,
 )
+from adamantine.v1.integrations.shield_v4_verification_audit import (  # noqa: E402
+    AUDIT_ACK_SCHEMA_VERSION,
+    audit_batch_sha256,
+    verify_shield_v4_orchestrator_receipt_with_audit,
+)
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -238,6 +243,46 @@ def test_v48g_r4_real_oqs_mldsa_full_chain_verifies_through_adamantineos() -> No
         "sentinel_ai",
     ]
     assert all(key["public_key"].startswith("b64u:") and key["key_id"].startswith("prod-") for key in registry["entries"])
+
+
+def test_v410b_real_oqs_mldsa_full_chain_requires_durable_audit_ack() -> None:
+    class Sink:
+        def __init__(self) -> None:
+            self.records = ()
+
+        def append_batch(self, records):
+            self.records = records
+            return {
+                "schema_version": AUDIT_ACK_SCHEMA_VERSION,
+                "batch_sha256": audit_batch_sha256(records),
+                "record_count": len(records),
+                "durably_committed": True,
+            }
+
+    receipt, registry, expected_context_hash, expected_request_id, verification_time = _realize_full_chain_receipt()
+    sink = Sink()
+    result = verify_shield_v4_orchestrator_receipt_with_audit(
+        receipt,
+        expected_context_hash=expected_context_hash,
+        expected_request_id=expected_request_id,
+        trusted_key_registry=registry,
+        verification_time=verification_time,
+        audit_sink=sink,
+        artifact_transport_hash=hashlib.sha256(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        signature_verifier=make_real_crypto_signature_verifier(HybridRealOqsFullChainVerifierBackend()),
+    )
+
+    assert result.accepted_as_evidence is True
+    assert result.final_approval is False
+    assert len(sink.records) == 14
+    assert any(
+        event.get("event_type") == "signature_verification"
+        and event.get("algorithm") == "ml-dsa"
+        and event.get("verification_passed") is True
+        for event in (json.loads(record.decode("utf-8")) for record in sink.records)
+    )
 
 
 def test_v48g_r4_real_oqs_mldsa_full_chain_rejects_tampered_orchestrator_mldsa() -> None:
