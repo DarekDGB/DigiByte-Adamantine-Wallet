@@ -10,16 +10,19 @@ on:
       - "src/adamantine/v1/integrations/shield_v4_oqs_falcon_backend.py"
       - "src/adamantine/v1/integrations/shield_v4_real_crypto_backend.py"
       - "src/adamantine/v1/integrations/shield_orchestrator_receipt_v4_verifier.py"
+      - "src/adamantine/v1/integrations/shield_v4_verification_audit.py"
       - "src/adamantine/v1/contracts/shield_orchestrator_receipt_v4.py"
       - "src/adamantine/v1/fixtures/shield_v4/**"
       - "tests/integrations/test_shield_v4_oqs_mldsa_backend.py"
       - "tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py"
       - "tests/integrations/test_shield_v48g_real_oqs_full_chain.py"
+      - "tests/integrations/test_shield_v410b_verification_audit.py"
       - "tests/integrations/test_shield_v48h_e_oqs_falcon_backend.py"
       - "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py"
       - "scripts/assert_real_oqs_junit_not_skipped.py"
       - "docs/ADAMANTINEOS_SHIELD_V4_REAL_CRYPTO_BACKEND.md"
       - "docs/ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md"
+      - "docs/CONTRACTS/shield_v4_verification_audit_v1.md"
       - "pyproject.toml"
       - ".github/workflows/shield-v4-real-oqs.yml"
   pull_request:
@@ -28,16 +31,19 @@ on:
       - "src/adamantine/v1/integrations/shield_v4_oqs_falcon_backend.py"
       - "src/adamantine/v1/integrations/shield_v4_real_crypto_backend.py"
       - "src/adamantine/v1/integrations/shield_orchestrator_receipt_v4_verifier.py"
+      - "src/adamantine/v1/integrations/shield_v4_verification_audit.py"
       - "src/adamantine/v1/contracts/shield_orchestrator_receipt_v4.py"
       - "src/adamantine/v1/fixtures/shield_v4/**"
       - "tests/integrations/test_shield_v4_oqs_mldsa_backend.py"
       - "tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py"
       - "tests/integrations/test_shield_v48g_real_oqs_full_chain.py"
+      - "tests/integrations/test_shield_v410b_verification_audit.py"
       - "tests/integrations/test_shield_v48h_e_oqs_falcon_backend.py"
       - "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py"
       - "scripts/assert_real_oqs_junit_not_skipped.py"
       - "docs/ADAMANTINEOS_SHIELD_V4_REAL_CRYPTO_BACKEND.md"
       - "docs/ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md"
+      - "docs/CONTRACTS/shield_v4_verification_audit_v1.md"
       - "pyproject.toml"
       - ".github/workflows/shield-v4-real-oqs.yml"
 
@@ -98,9 +104,10 @@ jobs:
         if: always()
         run: |
           python scripts/assert_real_oqs_junit_not_skipped.py shield-v4-real-oqs-results.xml \
-            --min-tests 5 \
+            --min-tests 6 \
             --require-testcase "tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py::test_v48g_real_oqs_mldsa65_adamantineos_verify_only_backend_positive_and_negatives" \
             --require-testcase "tests/integrations/test_shield_v48g_real_oqs_full_chain.py::test_v48g_r4_real_oqs_mldsa_full_chain_verifies_through_adamantineos" \
+            --require-testcase "tests/integrations/test_shield_v48g_real_oqs_full_chain.py::test_v410b_real_oqs_mldsa_full_chain_requires_durable_audit_ack" \
             --require-testcase "tests/integrations/test_shield_v48g_real_oqs_full_chain.py::test_v48g_r4_real_oqs_mldsa_full_chain_rejects_tampered_orchestrator_mldsa" \
             --require-testcase "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py::test_v48h_e_real_oqs_mldsa_and_falcon_full_chain_verifies_through_adamantineos" \
             --require-testcase "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py::test_v48h_e_real_oqs_full_chain_rejects_tampered_falcon_signature"
