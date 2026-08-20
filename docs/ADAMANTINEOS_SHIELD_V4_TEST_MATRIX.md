@@ -1,8 +1,8 @@
 # AdamantineOS Shield v4 Test Matrix
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.9-L independent external-contract consumer proof lock
-Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, final-policy v4-required tests, and real-backend verifier interface proofs
+Status: Shield v4 V4.10-B verification observability and audit-trail lock
+Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, durable audit boundary, final-policy v4-required tests, and real-backend verifier interface proofs
 
 ## 1. Current Shield v4 test files
 
@@ -10,6 +10,7 @@ Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, fi
 | --- | --- | --- |
 | Contract and fixtures | `tests/contracts/test_shield_orchestrator_receipt_v4_contract.py` | Locks Shield v4 receipt shape, hashes, component verdict shape, canonical signature-bundle order, downgrade rejection, and authority-bypass rejection. |
 | Verifier and trust registry | `tests/integrations/test_shield_orchestrator_receipt_v4_verifier.py` | Locks verifier acceptance/rejection, receipt-wide preflight, trusted key registry behavior, replay rejection, freshness, key role binding, and signature-summary behavior. |
+| V4.10-B durable verification audit | `tests/integrations/test_shield_v410b_verification_audit.py` | Locks the exact privacy-safe tagged union, per-artifact request-ID hashing, structured signature transcript, sanitized early failures, size/count bounds, exact built-in-dictionary atomic append acknowledgement, and fail-closed sink behavior without authority or replay changes. |
 | Final policy v4-required mode | `tests/policy/test_final_policy_engine_shield_v4_required.py` | Locks AdamantineOS final policy enforcement when `shield_v4_required=True`. |
 | Documentation lock | `tests/test_adamantineos_shield_v4_docs_lock.py` | Locks required Shield v4 documentation and boundary wording. |
 | V4.9-L external-verifier contract consumer | `tests/integrations/test_shield_v49_external_verification_contract.py` | Pins the byte-identical Orchestrator V1 fixture and locks independent AdamantineOS positive, negative, trust-provenance, and evidence-only verification. |
@@ -112,7 +113,7 @@ FN-DSA/Falcon must never be treated as ML-DSA and must never override failure of
 | Proof level | CI behavior | Claim allowed |
 | --- | --- | --- |
 | Default package CI | Uses deterministic verifier backends and fake OQS modules | Proves interface contract, fail-closed behavior, parser hardening, and AdamantineOS evidence-only integration. |
-| Gated live liboqs job | Requires `SHIELD_V4_REAL_OQS=1`, `SHIELD_V4_REAL_OQS_FALCON=1`, installed `oqs`/liboqs, JUnit output, and the exact five-node guard with `--min-tests 5` and `skipped == 0` | Proves live `ML-DSA-65` and Falcon-1024 positive verification, an ML-DSA cryptographic tamper negative, and an embedded-Falcon receipt-integrity tamper negative through the AdamantineOS verify-only boundary. |
+| Gated live liboqs job | Requires `SHIELD_V4_REAL_OQS=1`, `SHIELD_V4_REAL_OQS_FALCON=1`, installed `oqs`/liboqs, JUnit output, and the exact six-test guard with `--min-tests 6` and `skipped == 0` | Proves live `ML-DSA-65` and Falcon-1024 positive verification, an audited durable-ACK ML-DSA full-chain verification, an ML-DSA cryptographic tamper negative, and an embedded-Falcon receipt-integrity tamper negative through the AdamantineOS verify-only boundary. |
 | V4.10 release gate | Final multi-repo proof pack | Release-grade public claims about real-backend proof. |
 
 AdamantineOS remains verify-only for this path. The real-backend adapter has no `sign_message`, no private-key resolver, and no private-key reference.
