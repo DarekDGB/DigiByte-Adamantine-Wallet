@@ -1,7 +1,7 @@
 # AdamantineOS Shield v4 Threat Model
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.8H-D FN-DSA verify-only lock
+Status: Shield v4 V4.10-B verification observability and audit-trail lock
 Scope: AdamantineOS-side Shield v4 receipt verification and final-policy boundary
 
 ## 1. Security objective
@@ -34,6 +34,14 @@ AdamantineOS local policy code, local verifier code, and the configured trusted 
 ### 3.2 Untrusted boundary
 
 Incoming Shield receipts, component verdicts, embedded signature policies, metadata, handoff hints, wallet UI claims, network data, AI-generated text, and upstream summaries are untrusted until verified.
+
+V4.10-B audit output is also non-authoritative. AdamantineOS emits only the
+frozen, bounded `shield.verification_audit.v1` tagged union through an injected
+atomic append-only sink. Raw request IDs and key IDs are domain-separated
+hashes; receipts, signatures, keys, payloads, nonces, metadata, personal data,
+and exception text are prohibited. A missing durable acknowledgement fails
+closed before any evidence result escapes. Audit capture never mutates replay
+state and never grants final approval, signing, execution, or broadcast power.
 
 ### 3.3 Evidence boundary
 
@@ -164,9 +172,15 @@ Shield v4 does not replace user confirmation, wallet policy, replay gates, or Ad
 
 ## 12. Current phase status
 
-V4.8H-D locks AdamantineOS verify-only handling for optional FN-DSA/Falcon-1024 evidence. The verifier rejects an unconfigured signature backend instead of silently falling back to TEST-ONLY verification, independently cross-checks embedded `component_signature_results` against AdamantineOS-computed summaries, allows FN-DSA absence under current policy, and denies present-but-invalid, wrong-role, duplicate, spliced, unsupported-profile, or summary-drifted FN-DSA evidence.
+V4.8H-D and V4.8H-E are complete. They lock AdamantineOS verify-only handling
+for optional FN-DSA/Falcon-1024 evidence, the live Falcon-1024 gated proof path,
+and profile-summary drift rejection. V4.10-B now adds the frozen durable audit
+boundary described in Section 3.2 without changing verification authority,
+replay state, final policy, runtime execution, signing, or broadcast behavior.
 
-This is not the final Shield v4 release gate. The remaining phase still requires the V4.8H-E full integration and negative matrix lock, compatibility documentation, proof-pack closure, workflow evidence with `skipped == 0` where applicable, and final release status.
+This remains a controlled build gate rather than a release or tag claim. Later
+V4.10 gates, final proof-pack closure, required workflow evidence with
+`skipped == 0`, and explicit release authorization remain separate.
 
 ## V4.8H-E live-Falcon and summary-profile threat lock
 
