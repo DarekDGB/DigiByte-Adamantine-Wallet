@@ -13,11 +13,13 @@ from adamantine.v1.contracts.shield_orchestrator_receipt_v4 import (
     COMPONENT_ROLES,
     COMPONENT_VERDICT_DOMAIN,
     ORCHESTRATOR_RECEIPT_DOMAIN,
+    RECEIPT_SCHEMA_VERSION,
     REQUIRED_ALGORITHMS,
     SIGNATURE_BUNDLE_FIELDS,
     SIGNATURE_BUNDLE_SCHEMA_VERSION,
     SIGNATURE_ENTRY_FIELDS,
     SIGNATURE_POLICY,
+    VERDICT_SCHEMA_VERSION,
     ShieldV4ReceiptAuthorityBypassError,
     ShieldV4ReceiptContractError,
     ShieldV4ReceiptDowngradeError,
@@ -58,6 +60,17 @@ class ShieldV4ReceiptVerificationState(str, Enum):
     REJECTED_KEY_REGISTRY = "REJECTED_KEY_REGISTRY"
     REJECTED_REPLAY_RISK = "REJECTED_REPLAY_RISK"
     REJECTED_FRESHNESS_WINDOW = "REJECTED_FRESHNESS_WINDOW"
+
+
+V4_VERIFY_OK = "V4_VERIFY_OK"
+V4_CONTRACT_INVALID = "V4_CONTRACT_INVALID"
+V4_CONTEXT_MISMATCH = "V4_CONTEXT_MISMATCH"
+V4_HASH_MISMATCH = "V4_HASH_MISMATCH"
+V4_DOWNGRADE_REJECTED = "V4_DOWNGRADE_REJECTED"
+V4_AUTHORITY_BYPASS = "V4_AUTHORITY_BYPASS"
+V4_POLICY_INVALID = "V4_POLICY_INVALID"
+V4_SIGNATURE_INVALID = "V4_SIGNATURE_INVALID"
+V4_BACKEND_FAILURE = "V4_BACKEND_FAILURE"
 
 
 @dataclass(frozen=True)
@@ -119,6 +132,42 @@ class _PreparedSignatureEntry:
 
 
 @dataclass(frozen=True)
+class _VerificationArtifactIdentity:
+    artifact_type: str
+    artifact_schema_version: str
+    artifact_id: str
+    artifact_hash: str
+    request_id: str
+    context_hash: str
+    policy_version: str
+    registry_version: int
+
+
+@dataclass(frozen=True)
+class _SignatureVerificationObservation:
+    artifact: _VerificationArtifactIdentity
+    key_id: str
+    key_version: int
+    algorithm: str
+    standard_profile: str
+    verification_passed: bool
+    reason_id: str
+
+
+class _VerificationTranscriptObserver:
+    """Private observer used only by the required-audit wrapper."""
+
+    def validated_receipt(self, artifact: _VerificationArtifactIdentity) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+    def signature_attempt(self, observation: _SignatureVerificationObservation) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+    def contract_rejection(self, reason_id: str) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class _PreparedSignatureBundle:
     entries: tuple[_PreparedSignatureEntry, ...]
 
@@ -130,6 +179,7 @@ class _PreparedComponentBundle:
     artifact_not_before: str
     artifact_not_after: str
     bundle: _PreparedSignatureBundle
+    artifact: _VerificationArtifactIdentity
 
 
 @dataclass(frozen=True)
@@ -138,6 +188,7 @@ class _PreparedReceiptBundles:
     orchestrator: _PreparedSignatureBundle
     orchestrator_not_before: str
     orchestrator_not_after: str
+    orchestrator_artifact: _VerificationArtifactIdentity
 
 
 def _string_or_none(payload: Any, key: str) -> str | None:
@@ -509,6 +560,16 @@ def _preflight_receipt_bundles(receipt: Mapping[str, Any]) -> _PreparedReceiptBu
                     expected_signed_payload_hash=str(component["signed_payload_hash"]),
                     expected_domain_tag=COMPONENT_VERDICT_DOMAIN,
                 ),
+                artifact=_VerificationArtifactIdentity(
+                    artifact_type="component_verdict",
+                    artifact_schema_version=VERDICT_SCHEMA_VERSION,
+                    artifact_id=component_id,
+                    artifact_hash=str(component["signed_payload_hash"]),
+                    request_id=str(component["request_id"]),
+                    context_hash=str(component["context_hash"]),
+                    policy_version=str(component["signature_policy"]),
+                    registry_version=int(component["key_registry_version"]),
+                ),
             )
         )
     return _PreparedReceiptBundles(
@@ -520,6 +581,16 @@ def _preflight_receipt_bundles(receipt: Mapping[str, Any]) -> _PreparedReceiptBu
         ),
         orchestrator_not_before=str(receipt["not_before"]),
         orchestrator_not_after=str(receipt["not_after"]),
+        orchestrator_artifact=_VerificationArtifactIdentity(
+            artifact_type="orchestrator_receipt",
+            artifact_schema_version=RECEIPT_SCHEMA_VERSION,
+            artifact_id="shield_orchestrator",
+            artifact_hash=str(receipt["signed_payload_hash"]),
+            request_id=str(receipt["request_id"]),
+            context_hash=str(receipt["context_hash"]),
+            policy_version=str(receipt["signature_policy"]),
+            registry_version=int(receipt["key_registry_version"]),
+        ),
     )
 
 
@@ -532,6 +603,8 @@ def _verify_prepared_bundle(
     artifact_not_before: str,
     artifact_not_after: str,
     signature_verifier: SignatureVerifier,
+    artifact: _VerificationArtifactIdentity | None = None,
+    transcript_observer: _VerificationTranscriptObserver | None = None,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for prepared in prepared_bundle.entries:
@@ -548,18 +621,54 @@ def _verify_prepared_bundle(
         try:
             verified = signature_verifier(prepared.entry, key)
         except Exception as exc:
+            if transcript_observer is not None and artifact is not None:
+                transcript_observer.signature_attempt(
+                    _SignatureVerificationObservation(
+                        artifact=artifact,
+                        key_id=prepared.key_id,
+                        key_version=prepared.key_version,
+                        algorithm=prepared.algorithm,
+                        standard_profile=prepared.standard_profile,
+                        verification_passed=False,
+                        reason_id=V4_BACKEND_FAILURE,
+                    )
+                )
             raise _VerifierRejection(
                 ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_INVALID,
                 ReasonId.EQC_INVALID_SHIELD_BUNDLE,
                 "signature verifier failed closed",
             ) from exc
         if not isinstance(verified, bool):
+            if transcript_observer is not None and artifact is not None:
+                transcript_observer.signature_attempt(
+                    _SignatureVerificationObservation(
+                        artifact=artifact,
+                        key_id=prepared.key_id,
+                        key_version=prepared.key_version,
+                        algorithm=prepared.algorithm,
+                        standard_profile=prepared.standard_profile,
+                        verification_passed=False,
+                        reason_id=V4_BACKEND_FAILURE,
+                    )
+                )
             raise _VerifierRejection(
                 ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_INVALID,
                 ReasonId.EQC_INVALID_SHIELD_BUNDLE,
                 "signature verifier must return bool",
             )
         if not verified:
+            if transcript_observer is not None and artifact is not None:
+                transcript_observer.signature_attempt(
+                    _SignatureVerificationObservation(
+                        artifact=artifact,
+                        key_id=prepared.key_id,
+                        key_version=prepared.key_version,
+                        algorithm=prepared.algorithm,
+                        standard_profile=prepared.standard_profile,
+                        verification_passed=False,
+                        reason_id=V4_SIGNATURE_INVALID,
+                    )
+                )
             raise _VerifierRejection(
                 ShieldV4ReceiptVerificationState.REJECTED_SIGNATURE_INVALID,
                 ReasonId.EQC_INVALID_SHIELD_BUNDLE,
@@ -574,6 +683,18 @@ def _verify_prepared_bundle(
                 "verified": True,
             }
         )
+        if transcript_observer is not None and artifact is not None:
+            transcript_observer.signature_attempt(
+                _SignatureVerificationObservation(
+                    artifact=artifact,
+                    key_id=prepared.key_id,
+                    key_version=prepared.key_version,
+                    algorithm=prepared.algorithm,
+                    standard_profile=prepared.standard_profile,
+                    verification_passed=True,
+                    reason_id=V4_VERIFY_OK,
+                )
+            )
     return {
         "required_algorithms": list(REQUIRED_ALGORITHMS),
         "verified_algorithms": [r["algorithm"] for r in results],
@@ -670,6 +791,7 @@ def _verify_component_bundles(
     registry: TrustedShieldV4KeyRegistry,
     verification_time: str,
     signature_verifier: SignatureVerifier,
+    transcript_observer: _VerificationTranscriptObserver | None = None,
 ) -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for component in prepared_receipt.components:
@@ -681,6 +803,8 @@ def _verify_component_bundles(
             artifact_not_before=component.artifact_not_before,
             artifact_not_after=component.artifact_not_after,
             signature_verifier=signature_verifier,
+            artifact=component.artifact,
+            transcript_observer=transcript_observer,
         )
         summaries.append(
             {
@@ -772,7 +896,22 @@ def _classify_contract_error(exc: ValueError) -> tuple[ShieldV4ReceiptVerificati
     return ShieldV4ReceiptVerificationState.REJECTED_INVALID_RECEIPT, ReasonId.EQC_INVALID_SHIELD_BUNDLE, "SHIELD_V4_INVALID_RECEIPT"
 
 
-def verify_shield_v4_orchestrator_receipt(
+def _audit_reason_for_contract_error(exc: ValueError) -> str:
+    if isinstance(exc, ShieldV4ReceiptDowngradeError):
+        return V4_DOWNGRADE_REJECTED
+    if isinstance(exc, ShieldV4ReceiptHashMismatchError):
+        return V4_HASH_MISMATCH
+    if isinstance(exc, ShieldV4ReceiptAuthorityBypassError):
+        return V4_AUTHORITY_BYPASS
+    message = str(exc).lower()
+    if "context" in message:
+        return V4_CONTEXT_MISMATCH
+    if "policy" in message or "signature bundle" in message:
+        return V4_POLICY_INVALID
+    return V4_CONTRACT_INVALID
+
+
+def _verify_shield_v4_orchestrator_receipt(
     receipt: Any,
     *,
     expected_context_hash: str,
@@ -783,6 +922,7 @@ def verify_shield_v4_orchestrator_receipt(
     rejected_receipt_hashes: Iterable[str] = (),
     minimum_key_registry_version: int = 1,
     signature_verifier: SignatureVerifier | None = None,
+    transcript_observer: _VerificationTranscriptObserver | None = None,
 ) -> ShieldV4ReceiptVerificationResult:
     """Verify a Shield v4 Orchestrator receipt as evidence only.
 
@@ -796,7 +936,22 @@ def verify_shield_v4_orchestrator_receipt(
         valid = validate_shield_v4_receipt_contract(receipt, expected_context_hash=expected_context_hash)
     except ValueError as exc:
         state, reason_id, dominant = _classify_contract_error(exc)
+        if transcript_observer is not None:
+            transcript_observer.contract_rejection(_audit_reason_for_contract_error(exc))
         return _rejected(state=state, reason_id=reason_id, payload=receipt, dominant_reason=dominant)
+
+    validated_artifact = _VerificationArtifactIdentity(
+        artifact_type="orchestrator_receipt",
+        artifact_schema_version=RECEIPT_SCHEMA_VERSION,
+        artifact_id="shield_orchestrator",
+        artifact_hash=str(valid["signed_payload_hash"]),
+        request_id=str(valid["request_id"]),
+        context_hash=str(valid["context_hash"]),
+        policy_version=str(valid["signature_policy"]),
+        registry_version=int(valid["key_registry_version"]),
+    )
+    if transcript_observer is not None:
+        transcript_observer.validated_receipt(validated_artifact)
 
     if not isinstance(expected_request_id, str) or not expected_request_id.strip():
         return _rejected(
@@ -838,6 +993,7 @@ def verify_shield_v4_orchestrator_receipt(
             registry=registry,
             verification_time=verification_time,
             signature_verifier=signature_verifier,
+            transcript_observer=transcript_observer,
         )
         _cross_check_component_signature_results(valid, component_summaries)
         orchestrator_summary = _verify_prepared_bundle(
@@ -848,6 +1004,8 @@ def verify_shield_v4_orchestrator_receipt(
             artifact_not_before=prepared_receipt.orchestrator_not_before,
             artifact_not_after=prepared_receipt.orchestrator_not_after,
             signature_verifier=signature_verifier,
+            artifact=prepared_receipt.orchestrator_artifact,
+            transcript_observer=transcript_observer,
         )
     except _VerifierRejection as exc:
         return _rejected(state=exc.state, reason_id=exc.reason_id, payload=valid, dominant_reason=exc.message)
@@ -874,4 +1032,35 @@ def verify_shield_v4_orchestrator_receipt(
         dominant_reason_ids=tuple(str(reason_id) for reason_id in valid["dominant_reason_ids"]),
         receipt=valid,
         verification_summary=verification_summary,
+    )
+
+
+def verify_shield_v4_orchestrator_receipt(
+    receipt: Any,
+    *,
+    expected_context_hash: str,
+    expected_request_id: str,
+    trusted_key_registry: Mapping[str, Any],
+    verification_time: str,
+    seen_request_ids: Iterable[str] = (),
+    rejected_receipt_hashes: Iterable[str] = (),
+    minimum_key_registry_version: int = 1,
+    signature_verifier: SignatureVerifier | None = None,
+) -> ShieldV4ReceiptVerificationResult:
+    """Verify a Shield v4 Orchestrator receipt as evidence only.
+
+    The public API and behavior remain unchanged. The required-audit boundary
+    uses a separate wrapper and a private, non-authoritative transcript observer.
+    """
+
+    return _verify_shield_v4_orchestrator_receipt(
+        receipt,
+        expected_context_hash=expected_context_hash,
+        expected_request_id=expected_request_id,
+        trusted_key_registry=trusted_key_registry,
+        verification_time=verification_time,
+        seen_request_ids=seen_request_ids,
+        rejected_receipt_hashes=rejected_receipt_hashes,
+        minimum_key_registry_version=minimum_key_registry_version,
+        signature_verifier=signature_verifier,
     )
