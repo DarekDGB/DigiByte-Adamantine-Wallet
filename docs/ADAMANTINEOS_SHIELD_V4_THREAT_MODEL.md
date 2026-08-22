@@ -1,7 +1,7 @@
 # AdamantineOS Shield v4 Threat Model
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.10-B verification observability and audit-trail lock
+Status: Shield v4 V4.10-C performance and denial-of-service envelope lock
 Scope: AdamantineOS-side Shield v4 receipt verification and final-policy boundary
 
 ## 1. Security objective
@@ -133,19 +133,27 @@ Final approval is only produced by the AdamantineOS final policy engine after al
 
 ## 9. DoS and performance threats
 
-PQC verification can be expensive. The verifier must reject malformed input before expensive verification.
+PQC verification can be expensive. V4.10-C freezes the exact limits and order
+in `docs/CONTRACTS/shield_v4_performance_dos_envelope_v1.md`.
 
-Preferred order:
+The verifier traverses untrusted input once into an exact built-in JSON
+snapshot. It rejects cycles, depth above 16, more than 4,096 nodes, any text
+field above 8,192 bytes, cumulative UTF-8 scalar/key bytes above 131,072, and
+integers outside signed 64-bit range before copying or canonicalization. Empty
+generic strings and keys remain valid JSON snapshot values; later field schemas
+reject emptiness where required.
 
-1. reject non-mapping data
-2. reject wrong schema/version
-3. reject bad context/request/freshness fields
-4. reject bad hashes
-5. reject invalid trust-registry shape
-6. reject key mismatches
-7. then perform signature verification
+All six bundle shapes, algorithms, profiles, replay/denylist inputs, registry
+entries, freshness windows, key status, and key resolution pass before receipt
+or bundle canonicalization and hash work. Exact canonical receipt and bundle
+limits are then checked before any callback. Callback waves are globally
+ordered: all six classical calls, all six ML-DSA calls, then optional FN-DSA
+calls. Required-only work is exactly 12 callbacks and six PQC callbacks. Full
+optional evidence is exactly 18 callbacks and 12 PQC callbacks.
 
-A future production PQC backend must preserve this cheap-to-expensive ordering.
+The API receives a parsed mapping and trusted transport hash, so this boundary
+does not claim a raw JSON transport-byte limit. The transport parser must apply
+its own raw-message limit.
 
 ## 10. Real backend proof over-claim threats
 
@@ -174,9 +182,10 @@ Shield v4 does not replace user confirmation, wallet policy, replay gates, or Ad
 
 V4.8H-D and V4.8H-E are complete. They lock AdamantineOS verify-only handling
 for optional FN-DSA/Falcon-1024 evidence, the live Falcon-1024 gated proof path,
-and profile-summary drift rejection. V4.10-B now adds the frozen durable audit
-boundary described in Section 3.2 without changing verification authority,
-replay state, final policy, runtime execution, signing, or broadcast behavior.
+and profile-summary drift rejection. V4.10-B added the frozen durable audit
+boundary. V4.10-C adds bounded work, exact callback waves, and the pinned
+performance/DoS regression job without changing verification authority, replay
+state, final policy, runtime execution, signing, or broadcast behavior.
 
 This remains a controlled build gate rather than a release or tag claim. Later
 V4.10 gates, final proof-pack closure, required workflow evidence with
