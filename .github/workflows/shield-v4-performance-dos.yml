@@ -1,0 +1,104 @@
+name: Shield v4 V4.10-C Performance and DoS Envelope
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/shield-v4-performance-dos.yml"
+      - "docs/ADAMANTINEOS_SHIELD_V4_TEST_MATRIX.md"
+      - "docs/ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md"
+      - "docs/CONTRACTS/shield_v4_performance_dos_envelope_v1.md"
+      - "docs/CONTRACTS/shield_v4_verification_audit_v1.md"
+      - "scripts/benchmark_shield_v410c_verification.py"
+      - "src/adamantine/v1/contracts/shield_orchestrator_receipt_v4.py"
+      - "src/adamantine/v1/integrations/shield_orchestrator_receipt_v4_verifier.py"
+      - "src/adamantine/v1/integrations/shield_v4_real_crypto_backend.py"
+      - "src/adamantine/v1/integrations/shield_v4_verification_audit.py"
+      - "src/adamantine/v1/integrations/shield_v4_work_budget.py"
+      - "tests/integrations/test_shield_v410b_verification_audit.py"
+      - "tests/integrations/test_shield_v410c_performance_dos_envelope.py"
+      - "tests/integrations/test_shield_v48g_real_oqs_full_chain.py"
+      - "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py"
+  pull_request:
+    paths:
+      - ".github/workflows/shield-v4-performance-dos.yml"
+      - "docs/ADAMANTINEOS_SHIELD_V4_TEST_MATRIX.md"
+      - "docs/ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md"
+      - "docs/CONTRACTS/shield_v4_performance_dos_envelope_v1.md"
+      - "docs/CONTRACTS/shield_v4_verification_audit_v1.md"
+      - "scripts/benchmark_shield_v410c_verification.py"
+      - "src/adamantine/v1/contracts/shield_orchestrator_receipt_v4.py"
+      - "src/adamantine/v1/integrations/shield_orchestrator_receipt_v4_verifier.py"
+      - "src/adamantine/v1/integrations/shield_v4_real_crypto_backend.py"
+      - "src/adamantine/v1/integrations/shield_v4_verification_audit.py"
+      - "src/adamantine/v1/integrations/shield_v4_work_budget.py"
+      - "tests/integrations/test_shield_v410b_verification_audit.py"
+      - "tests/integrations/test_shield_v410c_performance_dos_envelope.py"
+      - "tests/integrations/test_shield_v48g_real_oqs_full_chain.py"
+      - "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py"
+
+permissions:
+  contents: read
+
+jobs:
+  verification-performance-dos-envelope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: "0"
+      TZ: "UTC"
+      LC_ALL: "C.UTF-8"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up exact Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.11.15"
+          cache: pip
+
+      - name: Install exact benchmark software
+        run: |
+          python -m pip install \
+            pip==25.2 \
+            setuptools==80.9.0 \
+            wheel==0.45.1
+          python -m pip install --no-build-isolation --no-deps -e .
+          python -m pip install \
+            pytest==8.4.1 \
+            pytest-cov==6.2.1
+
+      - name: Assert exact software versions
+        run: |
+          python - <<'PY'
+          import os
+          import platform
+          from importlib.metadata import version
+
+          expected = {
+              "pip": "25.2",
+              "setuptools": "80.9.0",
+              "wheel": "0.45.1",
+              "pytest": "8.4.1",
+              "pytest-cov": "6.2.1",
+          }
+          actual = {name: version(name) for name in expected}
+          assert actual == expected, (actual, expected)
+          assert platform.python_version() == "3.11.15"
+          assert os.environ["PYTHONHASHSEED"] == "0"
+          assert os.environ["TZ"] == "UTC"
+          assert os.environ["LC_ALL"] == "C.UTF-8"
+          print(actual)
+          PY
+
+      - name: Run V4.10-C envelope tests
+        run: |
+          python -m pytest --override-ini addopts='' \
+            tests/integrations/test_shield_v410c_performance_dos_envelope.py \
+            -q
+
+      - name: Run deterministic verification benchmark
+        run: |
+          python scripts/benchmark_shield_v410c_verification.py
