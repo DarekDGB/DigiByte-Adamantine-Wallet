@@ -637,7 +637,7 @@ def test_v410c_work_budget_helpers_lock_exact_json_and_iterable_behavior(
         require_bounded_text("x" * (MAX_TEXT_FIELD_BYTES + 1), field_name="text")
     with pytest.raises(ShieldV4WorkBudgetError, match="text byte"):
         require_bounded_text(
-            "Ã©" * ((MAX_TEXT_FIELD_BYTES // 2) + 1),
+            "\u00e9" * ((MAX_TEXT_FIELD_BYTES // 2) + 1),
             field_name="text",
         )
     huge_ascii = "x" * 4_000_000
@@ -665,7 +665,7 @@ def test_v410c_work_budget_helpers_lock_exact_json_and_iterable_behavior(
         ({"bad": "\ud800"}, "valid UTF-8"),
         ({"\ud800": "bad"}, "valid UTF-8"),
         ({"too-long": "x" * (MAX_TEXT_FIELD_BYTES + 1)}, "text field"),
-        ({"multibyte": "Ã©" * ((MAX_TEXT_FIELD_BYTES // 2) + 1)}, "text field"),
+        ({"multibyte": "\u00e9" * ((MAX_TEXT_FIELD_BYTES // 2) + 1)}, "text field"),
         (cycle, "cycle"),
         ([None] * (MAX_CONTAINER_NODES + 1), "list exceeds"),
         ({str(index): None for index in range(MAX_CONTAINER_NODES + 1)}, "mapping exceeds"),
