@@ -277,12 +277,25 @@ def test_v410b_real_oqs_mldsa_full_chain_requires_durable_audit_ack() -> None:
     assert result.accepted_as_evidence is True
     assert result.final_approval is False
     assert len(sink.records) == 14
-    assert any(
-        event.get("event_type") == "signature_verification"
-        and event.get("algorithm") == "ml-dsa"
-        and event.get("verification_passed") is True
-        for event in (json.loads(record.decode("utf-8")) for record in sink.records)
-    )
+    events = [json.loads(record.decode("utf-8")) for record in sink.records]
+    signature_events = [
+        event for event in events if event["event_type"] == "signature_verification"
+    ]
+    assert len(signature_events) == 12
+    assert sum(event["algorithm"] != "classical-ed25519" for event in signature_events) == 6
+    assert [event["algorithm"] for event in signature_events] == [
+        *("classical-ed25519" for _ in range(6)),
+        *("ml-dsa" for _ in range(6)),
+    ]
+    assert [event["artifact_id"] for event in signature_events] == [
+        "adn",
+        "dqsn",
+        "guardian_wallet",
+        "qwg",
+        "sentinel_ai",
+        "shield_orchestrator",
+    ] * 2
+    assert all(event["verification_passed"] is True for event in signature_events)
 
 
 def test_v48g_r4_real_oqs_mldsa_full_chain_rejects_tampered_orchestrator_mldsa() -> None:
