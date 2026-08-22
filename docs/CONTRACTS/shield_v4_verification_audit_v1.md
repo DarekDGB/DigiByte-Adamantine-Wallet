@@ -83,9 +83,21 @@ Audit fields never become execution authority. The wrapper does not write or
 reorder replay state and does not call the final-policy or runtime execution
 paths.
 
+V4.10-C preserves this tagged union, reason allowlist, acknowledgement, and
+batch contract. Successful required-only verification emits six classical
+signature records in canonical artifact order followed by six ML-DSA records
+in the same order. When valid optional FN-DSA is present in all bundles, six
+FN-DSA records follow. This is 12 signature records for required-only evidence
+or 18 for full optional evidence, plus the existing preflight and terminal
+records. No audit record is emitted for a cryptographic callback that did not
+occur.
+
 Receipt containers are untrusted operation surfaces. The audited wrapper first
-snapshots their mapping/list operations; an unexpected receipt-controlled
-exception produces only one sanitized failed preflight record and then raises
+creates the shared bounded exact-JSON snapshot. Dictionary/list subclasses,
+cycles, over-depth, over-node, over-text, over-scalar-byte, and over-integer
+inputs fail before canonicalization and callbacks. An unexpected
+receipt-controlled exception produces only one sanitized failed preflight
+record and then raises
 `ShieldV4AuditedVerificationError('V4_CONTRACT_INVALID')` without a chained
 cause. Raw exception details never enter the record or public error. Invalid
 trusted caller parameters (expected hashes/request ID, timestamp, registry floor,
