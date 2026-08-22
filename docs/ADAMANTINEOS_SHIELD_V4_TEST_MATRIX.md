@@ -1,8 +1,8 @@
 # AdamantineOS Shield v4 Test Matrix
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.10-B verification observability and audit-trail lock
-Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, durable audit boundary, final-policy v4-required tests, and real-backend verifier interface proofs
+Status: Shield v4 V4.10-C performance and denial-of-service envelope lock
+Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, durable audit boundary, bounded-work performance/DoS envelope, final-policy v4-required tests, and real-backend verifier interface proofs
 
 ## 1. Current Shield v4 test files
 
@@ -11,6 +11,7 @@ Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, du
 | Contract and fixtures | `tests/contracts/test_shield_orchestrator_receipt_v4_contract.py` | Locks Shield v4 receipt shape, hashes, component verdict shape, canonical signature-bundle order, downgrade rejection, and authority-bypass rejection. |
 | Verifier and trust registry | `tests/integrations/test_shield_orchestrator_receipt_v4_verifier.py` | Locks verifier acceptance/rejection, receipt-wide preflight, trusted key registry behavior, replay rejection, freshness, key role binding, and signature-summary behavior. |
 | V4.10-B durable verification audit | `tests/integrations/test_shield_v410b_verification_audit.py` | Locks the exact privacy-safe tagged union, per-artifact request-ID hashing, structured signature transcript, sanitized early failures, size/count bounds, exact built-in-dictionary atomic append acknowledgement, and fail-closed sink behavior without authority or replay changes. |
+| V4.10-C performance and DoS envelope | `tests/integrations/test_shield_v410c_performance_dos_envelope.py` | Locks bounded exact-JSON snapshot traversal, exact inclusive limits, all-six/all-key preflight, deferred canonical/hash work, 12/6 and 18/12 callback/PQC budgets, global algorithm waves, public verifier signature stability, and the pinned benchmark contract. |
 | Final policy v4-required mode | `tests/policy/test_final_policy_engine_shield_v4_required.py` | Locks AdamantineOS final policy enforcement when `shield_v4_required=True`. |
 | Documentation lock | `tests/test_adamantineos_shield_v4_docs_lock.py` | Locks required Shield v4 documentation and boundary wording. |
 | V4.9-L external-verifier contract consumer | `tests/integrations/test_shield_v49_external_verification_contract.py` | Pins the byte-identical Orchestrator V1 fixture and locks independent AdamantineOS positive, negative, trust-provenance, and evidence-only verification. |
@@ -81,6 +82,13 @@ Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, du
 | External V1 replay, stale window, revoked key, registry rollback, or denylisted receipt hash | Rejected fail-closed without final authority | `test_v49l_external_contract_rejects_replay_stale_revoked_rollback_and_denylist` |
 | External V1 wrong context, unsupported profile, noncanonical order, or weakened policy | Rejected fail-closed | `test_v49l_external_contract_rejects_context_profile_order_and_weakened_policy` |
 | Receipt-supplied trust or verifier registry with untrusted key material | Rejected; registry remains verifier-controlled only | `test_v49l_external_contract_registry_is_verifier_controlled_only` |
+| Snapshot exceeds 131,072 cumulative scalar/key bytes, 4,096 nodes, depth 16, 8,192 bytes per text field, or signed 64-bit integer range | Rejected contract-invalid before canonicalization or callbacks | `test_v410c_structural_limits_reject_before_materialization_or_callbacks` |
+| Receipt or bundle exceeds exact canonical byte budget | Rejected contract-invalid after all cheap trust preflight and before callbacks | `test_v410c_exact_canonical_receipt_and_bundle_limits_reject_with_zero_callbacks` |
+| Replay/denylist iterable exceeds 4,096 or raises | Rejected contract-invalid after consuming at most 4,097 entries and before callbacks | `test_v410c_replay_and_denylist_iterables_are_bounded_and_sanitized` |
+| Registry exceeds 64 entries | Rejected with existing registry state/reason and zero callbacks | `test_v410c_registry_exact_limit_and_overcount_are_fail_closed` |
+| Required-only receipt | Exact global waves: six classical then six ML-DSA; 12 callbacks, six PQC | `test_v410c_audited_global_algorithm_waves_have_exact_budgets_and_order` |
+| FN-DSA present in all bundles | Exact global waves: six classical, six ML-DSA, six FN-DSA; 18 callbacks, 12 PQC | `test_v410c_audited_global_algorithm_waves_have_exact_budgets_and_order` |
+| Missing, revoked, expired, or late key plus replay/denylist/freshness failure | All cheap gates complete with zero receipt canonical/hash calls and zero callbacks | `test_v410c_all_cheap_gates_finish_before_any_canonical_or_hash_work` |
 
 ## 4. Final policy v4-required matrix
 
@@ -114,6 +122,7 @@ FN-DSA/Falcon must never be treated as ML-DSA and must never override failure of
 | --- | --- | --- |
 | Default package CI | Uses deterministic verifier backends and fake OQS modules | Proves interface contract, fail-closed behavior, parser hardening, and AdamantineOS evidence-only integration. |
 | Gated live liboqs job | Requires `SHIELD_V4_REAL_OQS=1`, `SHIELD_V4_REAL_OQS_FALCON=1`, installed `oqs`/liboqs, JUnit output, and the exact six-test guard with `--min-tests 6` and `skipped == 0` | Proves live `ML-DSA-65` and Falcon-1024 positive verification, an audited durable-ACK ML-DSA full-chain verification, an ML-DSA cryptographic tamper negative, and an embedded-Falcon receipt-integrity tamper negative through the AdamantineOS verify-only boundary. |
+| V4.10-C pinned performance job | Exact Python/software/env, built-in 20-warmup/200-sample timer, valid p95 <= 50 ms and oversize-rejection p95 <= 20 ms | AdamantineOS validation/audit/orchestration regression envelope with deterministic callbacks; excludes native provider latency and universal hardware claims. |
 | V4.10 release gate | Final multi-repo proof pack | Release-grade public claims about real-backend proof. |
 
 AdamantineOS remains verify-only for this path. The real-backend adapter has no `sign_message`, no private-key resolver, and no private-key reference.
