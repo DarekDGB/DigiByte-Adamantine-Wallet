@@ -189,17 +189,21 @@ def test_v410b_success_is_returned_only_after_exact_atomic_audit_ack() -> None:
     assert all(record["event_type"] == "signature_verification" for record in signatures)
     assert [record["artifact_id"] for record in signatures] == [
         "adn",
+        "dqsn",
+        "guardian_wallet",
+        "qwg",
+        "sentinel_ai",
+        "shield_orchestrator",
         "adn",
         "dqsn",
-        "dqsn",
-        "guardian_wallet",
         "guardian_wallet",
         "qwg",
-        "qwg",
-        "sentinel_ai",
         "sentinel_ai",
         "shield_orchestrator",
-        "shield_orchestrator",
+    ]
+    assert [record["algorithm"] for record in signatures] == [
+        *("classical-ed25519" for _ in range(6)),
+        *("ml-dsa" for _ in range(6)),
     ]
     assert all(record["reason_id"] == V4_VERIFY_OK for record in signatures)
     terminal = records[-1]
@@ -308,21 +312,24 @@ def test_v410b_failure_paths_are_audited_without_untrusted_payload_fields(
     assert '"public_key"' not in serialized
 
 
-def test_v410b_validated_request_registry_freshness_and_replay_rejections_have_terminal() -> None:
+def test_v410c_preintegrity_rejections_emit_only_one_failed_preflight() -> None:
     fixture = _fixture()
     cases = (
         ({"expected_request_id": "wrong-request"}, V4_REQUEST_MISMATCH),
         ({"minimum_key_registry_version": 2}, V4_REGISTRY_INVALID),
         ({"verification_time": "2026-06-22T00:02:00Z"}, V4_FRESHNESS_INVALID),
         ({"seen_request_ids": (fixture["expected_request_id"],)}, V4_REPLAY_REJECTED),
+        ({"rejected_receipt_hashes": (fixture["receipt"]["receipt_hash"],)}, V4_REPLAY_REJECTED),
+        ({"seen_request_ids": tuple(f"seen-{index}" for index in range(4_097))}, V4_CONTRACT_INVALID),
     )
     for overrides, reason in cases:
         result, sink = _verify(fixture, **overrides)
         assert result.accepted_as_evidence is False
         events = _decode(sink.calls[0])
-        assert events[0]["reason_id"] == V4_VERIFY_OK
-        assert events[-1]["reason_id"] == reason
-        assert events[-1]["verification_passed"] is False
+        assert len(events) == 1
+        assert events[0]["event_type"] == "verification_preflight"
+        assert events[0]["reason_id"] == reason
+        assert events[0]["verification_passed"] is False
 
 
 @pytest.mark.parametrize(
