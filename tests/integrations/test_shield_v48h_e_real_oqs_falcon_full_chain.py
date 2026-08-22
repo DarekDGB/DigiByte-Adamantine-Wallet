@@ -47,6 +47,11 @@ from adamantine.v1.integrations.shield_v4_real_crypto_backend import (  # noqa: 
     encode_binary_signature_material,
     make_real_crypto_signature_verifier,
 )
+from adamantine.v1.integrations.shield_v4_verification_audit import (  # noqa: E402
+    AUDIT_ACK_SCHEMA_VERSION,
+    audit_batch_sha256,
+    verify_shield_v4_orchestrator_receipt_with_audit,
+)
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -217,12 +222,31 @@ def test_v48h_e_real_oqs_mldsa_and_falcon_full_chain_verifies_through_adamantine
     assert OQS_FALCON_MECHANISM in enabled
 
     receipt, registry, expected_context_hash, expected_request_id, verification_time = _realize_full_chain_receipt()
-    result = verify_shield_v4_orchestrator_receipt(
+
+    class Sink:
+        def __init__(self) -> None:
+            self.records = ()
+
+        def append_batch(self, records):
+            self.records = records
+            return {
+                "schema_version": AUDIT_ACK_SCHEMA_VERSION,
+                "batch_sha256": audit_batch_sha256(records),
+                "record_count": len(records),
+                "durably_committed": True,
+            }
+
+    sink = Sink()
+    result = verify_shield_v4_orchestrator_receipt_with_audit(
         receipt,
         expected_context_hash=expected_context_hash,
         expected_request_id=expected_request_id,
         trusted_key_registry=registry,
         verification_time=verification_time,
+        audit_sink=sink,
+        artifact_transport_hash=hashlib.sha256(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
         signature_verifier=make_real_crypto_signature_verifier(HybridRealOqsFnDsaFullChainVerifierBackend()),
     )
 
@@ -239,6 +263,27 @@ def test_v48h_e_real_oqs_mldsa_and_falcon_full_chain_verifies_through_adamantine
         "fips206-draft-falcon1024-v1",
     ]
     assert all("fn-dsa" in item["verified_algorithms"] for item in result.verification_summary["components"])
+    assert len(sink.records) == 20
+    events = [json.loads(record.decode("utf-8")) for record in sink.records]
+    signature_events = [
+        event for event in events if event["event_type"] == "signature_verification"
+    ]
+    assert len(signature_events) == 18
+    assert sum(event["algorithm"] != "classical-ed25519" for event in signature_events) == 12
+    assert [event["algorithm"] for event in signature_events] == [
+        *("classical-ed25519" for _ in range(6)),
+        *("ml-dsa" for _ in range(6)),
+        *("fn-dsa" for _ in range(6)),
+    ]
+    assert [event["artifact_id"] for event in signature_events] == [
+        "adn",
+        "dqsn",
+        "guardian_wallet",
+        "qwg",
+        "sentinel_ai",
+        "shield_orchestrator",
+    ] * 3
+    assert all(event["verification_passed"] is True for event in signature_events)
 
 
 def test_v48h_e_real_oqs_full_chain_rejects_tampered_falcon_signature() -> None:
