@@ -12,6 +12,11 @@ from adamantine.v1.contracts.shield_orchestrator_receipt_v4 import (
     ORCHESTRATOR_RECEIPT_DOMAIN,
 )
 from adamantine.v1.integrations.shield_orchestrator_receipt_v4_verifier import TrustedShieldV4Key
+from adamantine.v1.integrations.shield_v4_work_budget import (
+    MAX_TEXT_FIELD_BYTES,
+    ShieldV4WorkBudgetError,
+    require_bounded_text,
+)
 
 REAL_CRYPTO_SIGNATURE_INPUT_PREFIX = "DGB-SHIELD-V4-REAL-CRYPTO-SIGNATURE-INPUT"
 REAL_SIGNATURE_ENCODING_PREFIX = "b64u:"
@@ -113,7 +118,11 @@ def _require_supported_standard_profile(*, algorithm: str, standard_profile: Any
 
 
 def _reject_test_only_text(value: str, *, field: str) -> None:
-    clean = value.strip().lower()
+    try:
+        bounded = require_bounded_text(value, field_name=field)
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4RealCryptoMaterialError(f"{field} exceeds text byte budget") from exc
+    clean = bounded.strip().lower()
     if any(marker in clean for marker in _TEST_ONLY_MARKERS) or any(
         clean.startswith(prefix) for prefix in _TEST_ONLY_PREFIXES
     ):
@@ -132,14 +141,27 @@ def encode_binary_signature_material(raw: bytes, *, field: str = "signature") ->
 
     if not isinstance(raw, bytes) or not raw:
         raise ShieldV4RealCryptoBackendError(f"{field} bytes must be non-empty")
+    maximum_raw_bytes = (
+        (MAX_TEXT_FIELD_BYTES - len(REAL_SIGNATURE_ENCODING_PREFIX)) * 3
+    ) // 4
+    if len(raw) > maximum_raw_bytes:
+        raise ShieldV4RealCryptoBackendError(f"{field} exceeds encoding byte budget")
     encoded = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
-    return f"{REAL_SIGNATURE_ENCODING_PREFIX}{encoded}"
+    rendered = f"{REAL_SIGNATURE_ENCODING_PREFIX}{encoded}"
+    try:
+        return require_bounded_text(rendered, field_name=field)
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4RealCryptoBackendError(f"{field} exceeds encoding byte budget") from exc
 
 
 def decode_binary_signature_material(encoded: Any, *, field: str = "signature") -> bytes:
     """Decode an explicit ``b64u:`` signature/key encoding into bytes."""
 
-    clean = _require_non_empty_str(encoded, field=field)
+    try:
+        bounded = require_bounded_text(encoded, field_name=field)
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4RealCryptoBackendError(f"{field} exceeds encoding byte budget") from exc
+    clean = _require_non_empty_str(bounded, field=field)
     if not clean.startswith(REAL_SIGNATURE_ENCODING_PREFIX):
         raise ShieldV4RealCryptoBackendError(f"{field} must use b64u encoding")
     body = clean[len(REAL_SIGNATURE_ENCODING_PREFIX) :]
