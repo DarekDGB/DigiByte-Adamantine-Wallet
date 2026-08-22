@@ -7,6 +7,17 @@ import json
 import unicodedata
 from typing import Any
 
+from adamantine.v1.integrations.shield_v4_work_budget import (
+    MAX_CANONICAL_RECEIPT_BYTES,
+    MAX_SIGNATURE_BUNDLE_BYTES,
+    MAX_SIGNATURES_PER_BUNDLE,
+    ShieldV4WorkBudgetError,
+    bounded_json_snapshot,
+    require_bounded_text,
+    require_byte_budget,
+    require_signed_integer,
+)
+
 RECEIPT_SCHEMA_VERSION = "shield.receipt.v2"
 VERDICT_SCHEMA_VERSION = "shield.verdict.v2"
 SIGNATURE_BUNDLE_SCHEMA_VERSION = "shield.signature_bundle.v1"
@@ -218,15 +229,19 @@ def default_standard_profile_for_algorithm(algorithm: str) -> str:
 
 
 def _require_positive_int(value: Any, *, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+    try:
+        checked = require_signed_integer(value, field_name=field)
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4ReceiptContractError(f"{field} must be positive integer") from exc
+    if checked <= 0:
         raise ShieldV4ReceiptContractError(f"{field} must be positive integer")
-    return value
+    return checked
 
 
 def _require_hash(value: Any, *, field: str) -> str:
-    clean = _require_non_empty_str(value, field=field)
-    if len(clean) != 64:
+    if type(value) is not str or len(value) != 64:
         raise ShieldV4ReceiptContractError(f"{field} must be 64-character sha256 hex")
+    clean = _require_non_empty_str(value, field=field)
     try:
         int(clean, 16)
     except ValueError as exc:
@@ -239,7 +254,11 @@ def _require_hash(value: Any, *, field: str) -> str:
 def _require_signature_encoding(value: Any, *, field: str = "signature") -> str:
     """Accept legacy deterministic test digests or explicit real signature encodings."""
 
-    clean = _require_non_empty_str(value, field=field)
+    try:
+        bounded = require_bounded_text(value, field_name=field)
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4ReceiptContractError(f"{field} exceeds encoding budget") from exc
+    clean = _require_non_empty_str(bounded, field=field)
     if clean.startswith(REAL_SIGNATURE_ENCODING_PREFIX):
         body = clean[len(REAL_SIGNATURE_ENCODING_PREFIX) :]
         if not body:
@@ -305,6 +324,8 @@ def _validate_signature_bundle_shape(
         raise ShieldV4ReceiptContractError("signature bundle policy mismatch")
     if not isinstance(bundle["signatures"], list) or not bundle["signatures"]:
         raise ShieldV4ReceiptContractError("signature bundle signatures must be non-empty list")
+    if len(bundle["signatures"]) > MAX_SIGNATURES_PER_BUNDLE:
+        raise ShieldV4ReceiptContractError("signature bundle signature count outside work budget")
     expected_hash = _require_hash(expected_signed_payload_hash, field="expected_signed_payload_hash")
     seen_algorithms: set[str] = set()
     algorithm_sequence: list[str] = []
@@ -337,7 +358,19 @@ def _validate_signature_bundle_shape(
     missing = set(REQUIRED_ALGORITHMS) - seen_algorithms
     if missing:
         raise ShieldV4ReceiptContractError("signature policy requirements not satisfied")
+    _validate_signature_bundle_canonical_size(bundle)
     return dict(bundle)
+
+
+def _validate_signature_bundle_canonical_size(bundle: dict[str, Any]) -> None:
+    try:
+        require_byte_budget(
+            to_canonical_json(bundle).encode("utf-8"),
+            maximum=MAX_SIGNATURE_BUNDLE_BYTES,
+            field_name="signature bundle",
+        )
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4ReceiptContractError("signature bundle exceeds canonical byte budget") from exc
 
 
 def _validate_component_signature_results(results: Any) -> list[dict[str, Any]]:
@@ -381,7 +414,11 @@ def _unsigned_component_payload(component: dict[str, Any]) -> dict[str, Any]:
     return {key: component[key] for key in component if key not in {"signed_payload_hash", "signature_bundle", "verification_summary"}}
 
 
-def validate_component_verdict_contract(component: Any, *, expected_context_hash: str) -> dict[str, Any]:
+def _preflight_component_verdict_contract(
+    component: Any,
+    *,
+    expected_context_hash: str,
+) -> dict[str, Any]:
     if not isinstance(component, dict):
         raise ShieldV4ReceiptContractError("component verdict must be dict")
     if set(component.keys()) - OPTIONAL_COMPONENT_FIELDS != REQUIRED_SIGNED_COMPONENT_FIELDS:
@@ -418,25 +455,52 @@ def validate_component_verdict_contract(component: Any, *, expected_context_hash
         raise ShieldV4ReceiptContractError("component metadata must be dict")
     if _contains_forbidden_authority(component["metadata"]):
         raise ShieldV4ReceiptAuthorityBypassError("component metadata contains forbidden authority field")
-    unsigned_payload = _unsigned_component_payload(component)
-    expected_payload_hash = signed_payload_hash(domain_tag=COMPONENT_VERDICT_DOMAIN, payload=unsigned_payload)
-    if _require_hash(component["signed_payload_hash"], field="signed_payload_hash") != expected_payload_hash:
-        raise ShieldV4ReceiptHashMismatchError("component signed payload hash mismatch")
-    _validate_signature_bundle_shape(
-        component["signature_bundle"],
-        expected_signed_payload_hash=expected_payload_hash,
-        expected_domain_tag=COMPONENT_VERDICT_DOMAIN,
-    )
+    _require_hash(component["signed_payload_hash"], field="signed_payload_hash")
     return dict(component)
 
 
-def _validate_component_set(component_verdicts: Any, *, expected_context_hash: str) -> list[dict[str, Any]]:
+def _validate_component_signature_bundle(component: dict[str, Any]) -> None:
+    _validate_signature_bundle_shape(
+        component["signature_bundle"],
+        expected_signed_payload_hash=str(component["signed_payload_hash"]),
+        expected_domain_tag=COMPONENT_VERDICT_DOMAIN,
+    )
+
+
+def _validate_component_canonical_integrity(component: dict[str, Any]) -> None:
+    unsigned_payload = _unsigned_component_payload(component)
+    expected_payload_hash = signed_payload_hash(
+        domain_tag=COMPONENT_VERDICT_DOMAIN,
+        payload=unsigned_payload,
+    )
+    if component["signed_payload_hash"] != expected_payload_hash:
+        raise ShieldV4ReceiptHashMismatchError("component signed payload hash mismatch")
+
+
+def validate_component_verdict_contract(component: Any, *, expected_context_hash: str) -> dict[str, Any]:
+    checked = _preflight_component_verdict_contract(
+        component,
+        expected_context_hash=expected_context_hash,
+    )
+    _validate_component_canonical_integrity(checked)
+    _validate_component_signature_bundle(checked)
+    return checked
+
+
+def _preflight_component_set(
+    component_verdicts: Any,
+    *,
+    expected_context_hash: str,
+) -> list[dict[str, Any]]:
     if not isinstance(component_verdicts, list) or len(component_verdicts) != len(SUPPORTED_COMPONENTS):
         raise ShieldV4ReceiptContractError("component_verdicts must contain every required Shield v4 component")
     seen: set[str] = set()
     checked: list[dict[str, Any]] = []
     for component in component_verdicts:
-        validated = validate_component_verdict_contract(component, expected_context_hash=expected_context_hash)
+        validated = _preflight_component_verdict_contract(
+            component,
+            expected_context_hash=expected_context_hash,
+        )
         component_id = validated["component_id"]
         if component_id in seen:
             raise ShieldV4ReceiptContractError("duplicate component verdict")
@@ -449,7 +513,11 @@ def unsigned_receipt_payload(receipt: dict[str, Any]) -> dict[str, Any]:
     return {key: receipt[key] for key in receipt if key not in UNSIGNED_RECEIPT_EXCLUDED_FIELDS}
 
 
-def validate_shield_v4_receipt_contract(receipt: Any, *, expected_context_hash: str) -> dict[str, Any]:
+def _preflight_bounded_shield_v4_receipt_contract(
+    receipt: Any,
+    *,
+    expected_context_hash: str,
+) -> dict[str, Any]:
     if not isinstance(receipt, dict):
         raise ShieldV4ReceiptContractError("receipt must be dict")
     if receipt.get("schema_version") == "shield.receipt.v1" or receipt.get("contract_version") == 3:
@@ -481,22 +549,93 @@ def validate_shield_v4_receipt_contract(receipt: Any, *, expected_context_hash: 
         raise ShieldV4ReceiptContractError("adamantineos_handoff must be dict")
     if _contains_forbidden_authority(receipt["adamantineos_handoff"]):
         raise ShieldV4ReceiptAuthorityBypassError("adamantineos_handoff contains forbidden authority field")
-    component_results = _validate_component_signature_results(receipt["component_signature_results"])
-    component_verdicts = _validate_component_set(receipt["component_verdicts"], expected_context_hash=context_hash)
+    _validate_component_signature_results(receipt["component_signature_results"])
+    component_verdicts = _preflight_component_set(
+        receipt["component_verdicts"],
+        expected_context_hash=context_hash,
+    )
     expected_outcome = _expected_final_outcome(component_verdicts)
     if receipt["final_outcome"] != expected_outcome:
         raise ShieldV4ReceiptContractError("receipt final outcome does not match component decisions")
     if receipt["final_outcome"] != "ALLOW" and receipt["adamantineos_handoff"].get("handoff_allowed") is True:
         raise ShieldV4ReceiptAuthorityBypassError("non-ALLOW receipt cannot carry handoff_allowed true")
+    _require_hash(receipt["receipt_hash"], field="receipt_hash")
+    _require_hash(receipt["signed_payload_hash"], field="signed_payload_hash")
+    return dict(receipt)
+
+
+def preflight_shield_v4_receipt_contract(
+    receipt: Any,
+    *,
+    expected_context_hash: str,
+) -> dict[str, Any]:
+    """Bound and validate cheap receipt structure without canonical hashes."""
+
+    try:
+        snapshot = bounded_json_snapshot(receipt, field_name="receipt")
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4ReceiptContractError("receipt exceeds structural work budget") from exc
+    return _preflight_bounded_shield_v4_receipt_contract(
+        snapshot,
+        expected_context_hash=expected_context_hash,
+    )
+
+
+def validate_preflighted_shield_v4_receipt_integrity(
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply the expensive canonical byte and hash checks after trust preflight."""
+
+    try:
+        require_byte_budget(
+            to_canonical_json(receipt).encode("utf-8"),
+            maximum=MAX_CANONICAL_RECEIPT_BYTES,
+            field_name="canonical receipt",
+        )
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4ReceiptContractError("receipt exceeds canonical byte budget") from exc
+    for component in receipt["component_verdicts"]:
+        _validate_signature_bundle_canonical_size(component["signature_bundle"])
+    _validate_signature_bundle_canonical_size(receipt["signature_bundle"])
+    for component in receipt["component_verdicts"]:
+        _validate_component_canonical_integrity(component)
     unsigned_payload = unsigned_receipt_payload(receipt)
-    if receipt_hash(unsigned_payload) != _require_hash(receipt["receipt_hash"], field="receipt_hash"):
+    if receipt_hash(unsigned_payload) != receipt["receipt_hash"]:
         raise ShieldV4ReceiptHashMismatchError("receipt hash mismatch")
     expected_payload_hash = signed_payload_hash(domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN, payload=unsigned_payload)
-    if expected_payload_hash != _require_hash(receipt["signed_payload_hash"], field="signed_payload_hash"):
+    if expected_payload_hash != receipt["signed_payload_hash"]:
+        raise ShieldV4ReceiptHashMismatchError("receipt signed payload hash mismatch")
+    return dict(receipt)
+
+
+def validate_shield_v4_receipt_contract(receipt: Any, *, expected_context_hash: str) -> dict[str, Any]:
+    checked = preflight_shield_v4_receipt_contract(
+        receipt,
+        expected_context_hash=expected_context_hash,
+    )
+    try:
+        require_byte_budget(
+            to_canonical_json(checked).encode("utf-8"),
+            maximum=MAX_CANONICAL_RECEIPT_BYTES,
+            field_name="canonical receipt",
+        )
+    except ShieldV4WorkBudgetError as exc:
+        raise ShieldV4ReceiptContractError("receipt exceeds canonical byte budget") from exc
+    for component in checked["component_verdicts"]:
+        _validate_component_canonical_integrity(component)
+        _validate_component_signature_bundle(component)
+    unsigned_payload = unsigned_receipt_payload(checked)
+    if receipt_hash(unsigned_payload) != checked["receipt_hash"]:
+        raise ShieldV4ReceiptHashMismatchError("receipt hash mismatch")
+    expected_payload_hash = signed_payload_hash(
+        domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN,
+        payload=unsigned_payload,
+    )
+    if expected_payload_hash != checked["signed_payload_hash"]:
         raise ShieldV4ReceiptHashMismatchError("receipt signed payload hash mismatch")
     _validate_signature_bundle_shape(
-        receipt["signature_bundle"],
+        checked["signature_bundle"],
         expected_signed_payload_hash=expected_payload_hash,
         expected_domain_tag=ORCHESTRATOR_RECEIPT_DOMAIN,
     )
-    return dict(receipt)
+    return checked
