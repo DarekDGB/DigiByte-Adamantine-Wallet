@@ -26,6 +26,12 @@ from adamantine.v1.integrations.shield_orchestrator_receipt_v4_verifier import (
     _VerificationTranscriptObserver,
     _verify_shield_v4_orchestrator_receipt,
 )
+from adamantine.v1.integrations.shield_v4_work_budget import (
+    ShieldV4WorkBudgetError,
+    bounded_json_snapshot,
+    require_bounded_text,
+    require_signed_integer,
+)
 
 AUDIT_SCHEMA_VERSION = "shield.verification_audit.v1"
 AUDIT_ACK_SCHEMA_VERSION = "shield.verification_audit.append_ack.v1"
@@ -210,8 +216,10 @@ class ShieldV4AuditedVerificationError(ValueError):
 
 
 def _identifier_hash(*, domain: str, value: str, field: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"{field} must be non-empty string")
+    try:
+        value = require_bounded_text(value, field_name=field)
+    except ShieldV4WorkBudgetError:
+        raise ValueError(f"{field} must be non-empty string") from None
     normalized = unicodedata.normalize("NFC", value)
     return hashlib.sha256(domain.encode("utf-8") + normalized.encode("utf-8")).hexdigest()
 
@@ -370,13 +378,13 @@ def audit_batch_sha256(records: tuple[VerificationAuditRecordBytes, ...]) -> str
 
 
 def _validate_sha256(value: Any, *, field: str) -> str:
-    if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
+    if type(value) is not str or len(value) != 64 or _SHA256_RE.fullmatch(value) is None:
         raise ValueError(f"{field} must be lowercase sha256 hex")
     return value
 
 
 def _validate_timestamp(value: Any) -> str:
-    if not isinstance(value, str) or _EXACT_UTC_SECOND_RE.fullmatch(value) is None:
+    if type(value) is not str or len(value) != 20 or _EXACT_UTC_SECOND_RE.fullmatch(value) is None:
         raise ValueError("verification_time must be exact-second RFC3339 UTC")
     try:
         datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
@@ -390,28 +398,9 @@ def _validate_batch(records: tuple[VerificationAuditRecordBytes, ...]) -> None:
 
 
 def _snapshot_untrusted_receipt(value: Any) -> Any:
-    """Snapshot JSON containers while exercising hostile mapping/list operations."""
+    """Take the shared bounded exact-JSON snapshot before audit verification."""
 
-    if isinstance(value, dict):
-        keys = tuple(iter(value))
-        items = tuple(value.items())
-        if keys != tuple(key for key, _item in items):
-            raise ValueError("receipt mapping changed during snapshot")
-        missing = object()
-        for key in keys:
-            if type(key) is not str:
-                raise ValueError("receipt mapping key must be exact string")
-            if value.get(key, missing) is missing:
-                raise ValueError("receipt mapping changed during snapshot")
-        return {
-            key: _snapshot_untrusted_receipt(item)
-            for key, item in items
-        }
-    if isinstance(value, list):
-        return [_snapshot_untrusted_receipt(item) for item in tuple(iter(value))]
-    if type(value) in {str, int, bool, type(None)}:
-        return value
-    raise ValueError("receipt scalar must be exact JSON scalar")
+    return bounded_json_snapshot(value, field_name="receipt")
 
 
 class _TranscriptCapture(_VerificationTranscriptObserver):
@@ -581,9 +570,22 @@ def verify_shield_v4_orchestrator_receipt_with_audit(
     verification_time = _validate_timestamp(verification_time)
     expected_context_hash = _validate_sha256(expected_context_hash, field="expected_context_hash")
     artifact_transport_hash = _validate_sha256(artifact_transport_hash, field="artifact_transport_hash")
-    audit_request_id_hash(expected_request_id)
-    if type(minimum_key_registry_version) is not int or minimum_key_registry_version <= 0:
+    try:
+        require_bounded_text(expected_request_id, field_name="expected_request_id")
+    except ShieldV4WorkBudgetError:
+        raise ValueError("expected_request_id must be non-empty string") from None
+    try:
+        minimum_key_registry_version = require_signed_integer(
+            minimum_key_registry_version,
+            field_name="minimum_key_registry_version",
+        )
+    except ShieldV4WorkBudgetError:
+        raise ValueError(
+            "minimum_key_registry_version must be positive integer",
+        ) from None
+    if minimum_key_registry_version <= 0:
         raise ValueError("minimum_key_registry_version must be positive integer")
+    audit_request_id_hash(expected_request_id)
 
     capture = _TranscriptCapture()
     try:
@@ -599,6 +601,7 @@ def verify_shield_v4_orchestrator_receipt_with_audit(
             minimum_key_registry_version=minimum_key_registry_version,
             signature_verifier=signature_verifier,
             transcript_observer=capture,
+            receipt_is_bounded_snapshot=True,
         )
     except Exception:
         preflight = _preflight_record(
