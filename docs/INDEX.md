@@ -2,12 +2,25 @@
 
 ## Current Version
 
-**v3.0.0 --- Connected Evidence Architecture Release**
+**Package 3.0.0 retained; unreleased Shield v4 verifier candidate**
+
+V4.10-F deliberately makes no version bump or tag decision. The next
+independent AdamantineOS release number is not assigned here. Historical
+v3.0.0 evidence is separate from the current verifier candidate.
+
+## Current Shield v4 verifier proof
+
+- [Final verifier proof pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+- [Independent release status](ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md)
+- [Verifier contract](ADAMANTINEOS_SHIELD_V4_PQC_VERIFIER.md)
+- [Threat model](ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md)
+- [Test matrix](ADAMANTINEOS_SHIELD_V4_TEST_MATRIX.md)
+- [Real crypto backend](ADAMANTINEOS_SHIELD_V4_REAL_CRYPTO_BACKEND.md)
 
 ------------------------------------------------------------------------
 
 
-## Connected Evidence Architecture
+## Historical v3.0.0 Connected Evidence Architecture
 
 The `v3.0.0` release connects Shield components, Shield Orchestrator v3.2 receipts, WSQK v2, Q-ID, Adaptive Core, AI Gateway evidence-only input, replay / nonce enforcement, wallet policy evidence, and human review into the final AdamantineOS fail-closed decision engine.
 
@@ -74,6 +87,7 @@ AdamantineOS follows strict architectural guardrails:
 Audit maps connecting contracts, invariants, implementation, tests, and CI proof.
 
 -   [WSQK v2 Quantum-Aware Proof Pack](PROOF_PACKS/wsqk_v2_quantum_aware_proof_pack.md)
+-   [Shield v4 Final Verifier Proof Pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
 
 ------------------------------------------------------------------------
 
@@ -88,7 +102,7 @@ Every major feature is supported by:
 
 ------------------------------------------------------------------------
 
-## Release Gate
+## Historical v3.0.0 Release Gate
 
 Final release-gate and proof documents for the AdamantineOS v3.0.0 tag boundary.
 
@@ -100,7 +114,10 @@ Final release-gate and proof documents for the AdamantineOS v3.0.0 tag boundary.
 -   [Final Proof Pack Index](ADAMANTINEOS_FINAL_PROOF_PACK_INDEX.md)
 -   [v3.0.0 Release Notes](ADAMANTINEOS_V3_0_0_RELEASE_NOTES.md)
 
-Milestone 19 records the final release-gate proof set and release-stamped state for the approved `v3.0.0` tag. AdamantineOS must only be tagged after this release-stamp update is copied back, CI remains green, and the final copied-repo ZIP is inspected.
+Milestone 19 records the historical v3.0.0 release boundary. Its old approval
+text is not current Shield v4 evidence or permission to create or move a tag.
+The current candidate's post-commit standard, six-node native, performance,
+and fresh-ZIP gates are in the Shield v4 release-status record above.
 
 
 ## Step 8.6 Receipt Denylist Wiring
