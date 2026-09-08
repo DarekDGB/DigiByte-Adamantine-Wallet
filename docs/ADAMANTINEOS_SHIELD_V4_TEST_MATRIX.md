@@ -1,7 +1,7 @@
 # AdamantineOS Shield v4 Test Matrix
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.10-C performance and denial-of-service envelope lock
+Status: Shield v4 V4.10-F final verifier candidate proof lock
 Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, durable audit boundary, bounded-work performance/DoS envelope, final-policy v4-required tests, and real-backend verifier interface proofs
 
 ## 1. Current Shield v4 test files
@@ -14,6 +14,7 @@ Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, du
 | V4.10-C performance and DoS envelope | `tests/integrations/test_shield_v410c_performance_dos_envelope.py` | Locks bounded exact-JSON snapshot traversal, exact inclusive limits, all-six/all-key preflight, deferred canonical/hash work, 12/6 and 18/12 callback/PQC budgets, global algorithm waves, public verifier signature stability, and the pinned benchmark contract. |
 | Final policy v4-required mode | `tests/policy/test_final_policy_engine_shield_v4_required.py` | Locks AdamantineOS final policy enforcement when `shield_v4_required=True`. |
 | Documentation lock | `tests/test_adamantineos_shield_v4_docs_lock.py` | Locks required Shield v4 documentation and boundary wording. |
+| F final verifier proof pack | `tests/test_v410f_final_verifier_proof_pack.py` | Composes the exact shared KAT, audited verification, durable ACK failure, final gate order and local veto; locks independent no-bump status, frozen files, exact native nodes, proof links, and ASCII-safe copy payloads. |
 | V4.9-L external-verifier contract consumer | `tests/integrations/test_shield_v49_external_verification_contract.py` | Pins the byte-identical Orchestrator V1 fixture and locks independent AdamantineOS positive, negative, trust-provenance, and evidence-only verification. |
 | Real backend interface contract | `tests/integrations/test_shield_v4_real_crypto_backend_contract.py` | Locks real verifier backend input validation, `b64u:` material, strict bool returns, and fail-closed backend exception behavior. |
 | OQS ML-DSA adapter contract | `tests/integrations/test_shield_v4_oqs_mldsa_backend.py` | Locks optional OQS `ML-DSA-65` verify-only adapter behavior with deterministic fakes and native-exception wrapping. |
@@ -110,7 +111,7 @@ Scope: AdamantineOS Shield v4 contract, external-contract consumer, verifier, du
 
 | Algorithm label | Meaning | Current role |
 | --- | --- | --- |
-| `classical-ed25519` | classical test-only signature path | required in `policy.v1` |
+| `classical-ed25519` | classical Ed25519 algorithm label; deterministic TEST-ONLY callbacks in the shipped proof harnesses | required in `policy.v1` |
 | `ml-dsa` | ML-DSA, formerly CRYSTALS-Dilithium | required in `policy.v1` |
 | `fn-dsa` | FN-DSA, based on Falcon; locked draft profile `fips206-draft-falcon1024-v1` | optional evidence only |
 
@@ -127,9 +128,11 @@ FN-DSA/Falcon must never be treated as ML-DSA and must never override failure of
 
 AdamantineOS remains verify-only for this path. The real-backend adapter has no `sign_message`, no private-key resolver, and no private-key reference.
 
-## 7. Negative tests still carried into later phases
+## 7. Negative tests retained for final release gates
 
-The following remain important for the full Shield v4 release gate and multi-repo harness:
+The following implemented fixture-harness cases remain required regression
+evidence for the full release gate. They are not a deployed multi-repository
+wallet integration claim:
 
 - full all-component signed ALLOW path across five component repos, Orchestrator, and AdamantineOS
 - one component signature missing across the integration harness
@@ -180,3 +183,24 @@ V4.8H-E adds:
 | Gated real liboqs Falcon-1024 full-chain proof | Must pass with JUnit `skipped == 0` before any public live-Falcon claim | `test_shield_v48h_e_real_oqs_falcon_full_chain.py` plus `scripts/assert_real_oqs_junit_not_skipped.py` |
 
 The matrix keeps AdamantineOS verify-only and preserves the final execution boundary.
+
+## V4.10-F final verifier and release-status lock
+
+The [final verifier proof pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+is the complete requirement-to-test map. The
+[release-status record](ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md) records the
+independent no-bump decision: package 3.0.0 remains unchanged, while Shield v4
+is an unreleased verifier candidate rather than historical v3.0.0 evidence.
+
+Final gate order is `shield`, `wsqk_v2`, `qid`, `adaptive_core`, `ai_gateway`,
+`replay`, `wallet_policy`, `human`, then the final decision. The compatibility
+default remains `shield_v4_required=False`; F does not automatically enable
+v4-required mode in the existing v2 runtime host. No deployed wallet/SDK claim
+is made. A wallet consumes only AdamantineOS final output.
+
+F requires full standard CI with 100% statement coverage, the existing exact
+six-node native guard with zero skips/errors/failures, and the pinned
+performance job on the complete F commit, followed by fresh-ZIP verification.
+Ordinary local/standard runs may skip the three explicitly gated native
+modules; those skips never substitute for native proof. Test counts and
+commit-specific results are recorded in the controlled roadmap handoff.
