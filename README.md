@@ -2,16 +2,17 @@
   <img src="assets/branding/adamantineos-logo-primary.PNG" width="420"/>
 </p>
 
-# 🔷 DigiByte AdamantineOS
+# DigiByte AdamantineOS
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Status](https://img.shields.io/badge/status-v3.0.0-brightgreen.svg)
+![Package](https://img.shields.io/badge/package-3.0.0-blue.svg)
+![Shield v4](https://img.shields.io/badge/Shield-v4%20verifier%20candidate-orange.svg)
 ![CI](https://github.com/DarekDGB/DigiByte-AdamantineOS/actions/workflows/ci.yml/badge.svg)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)
 
 ![Q-ID](https://img.shields.io/badge/Q--ID-runtime--verified-0A66C2.svg)
 ![Adaptive Core v3](https://img.shields.io/badge/Adaptive%20Core-v3%20evidence--only-0052CC.svg)
-![Shield v3.2](https://img.shields.io/badge/Shield-v3.2%20orchestrator--receipt-003366.svg)
+![Shield compatibility](https://img.shields.io/badge/Shield-v3.2%20compatibility-003366.svg)
 ![Governance](https://img.shields.io/badge/Governance-AC%20v3%20verified-6f42c1.svg)
 ![WSQK v2](https://img.shields.io/badge/WSQK-v2%20quantum--aware-8A2BE2.svg)
 ![AI Gateway](https://img.shields.io/badge/AI%20Gateway-evidence--only%20never%20authority-111111.svg)
@@ -30,20 +31,52 @@ AdamantineOS sits before execution and connects external evidence layers
 into one final fail-closed decision path. External systems provide evidence;
 AdamantineOS makes the final allow, deny, or human-review decision.
 
-The `v3.0.0` release connects:
+The historical `v3.0.0` release connects:
 
-• **Shield v3.2 component evidence** through the Shield Orchestrator receipt\
-• **WSQK v2 posture / policy evidence**\
-• **Q-ID identity / session evidence**\
-• **Adaptive Core advisory policy evidence**\
-• **AI Gateway evidence-only input, never final authority**\
-• **Replay / nonce freshness enforcement**\
-• **Wallet policy / EQC evidence**\
-• **Human review bound to exact context**\
-• **Final AdamantineOS fail-closed decision authority**
+- **Shield v3.2 component evidence** through the Shield Orchestrator receipt\
+- **WSQK v2 posture / policy evidence**\
+- **Q-ID identity / session evidence**\
+- **Adaptive Core advisory policy evidence**\
+- **AI Gateway evidence-only input, never final authority**\
+- **Replay / nonce freshness enforcement**\
+- **Wallet policy / EQC evidence**\
+- **Human review bound to exact context**\
+- **Final AdamantineOS fail-closed decision authority**
 
 Only after the final AdamantineOS decision engine returns an allow verdict
 can execution continue.
+
+## Current Shield v4 verifier candidate - V4.10-F
+
+The current source includes independent component and Orchestrator verification,
+required classical Ed25519 plus ML-DSA policy, optional draft FN-DSA/Falcon-1024,
+canonical bundle order, verifier-controlled trust, freshness/replay checks,
+durable verification audit, and bounded verification work.
+
+- [Final verifier proof pack](docs/PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+- [Independent version and release status](docs/ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md)
+- [Verifier contract](docs/ADAMANTINEOS_SHIELD_V4_PQC_VERIFIER.md)
+- [Threat model](docs/ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md)
+- [Test matrix](docs/ADAMANTINEOS_SHIELD_V4_TEST_MATRIX.md)
+- [Real-backend proof boundaries](docs/ADAMANTINEOS_SHIELD_V4_REAL_CRYPTO_BACKEND.md)
+
+F deliberately keeps package version `3.0.0`: this is a documentation/test
+step, not a new AdamantineOS release stamp. The next independent version is
+not assigned here. Historical v3.0.0 release evidence is not current v4 proof.
+AdamantineOS does not inherit the six Shield repositories' `v4.0.0` tag.
+
+`shield_v4_required=True` is explicit; the compatibility default remains
+`shield_v4_required=False`. F does not automatically enable v4-required mode
+in the existing v2 runtime host. The direct verifier/final-policy tests are
+not a deployed wallet or completed SDK claim. A wallet consumes only
+AdamantineOS final output, never upstream `handoff_allowed` as final approval.
+
+Standard CI enforces 100% statement coverage. The native proof separately
+requires six exact nodes with zero skips; its classical callbacks remain
+TEST-ONLY. Performance/DoS proof uses deterministic callbacks, not native
+latency measurements. Draft Falcon-1024 is not final FIPS 206 proof.
+Post-commit workflows, fresh-ZIP verification, and final release authorization
+remain separate gates.
 
 ------------------------------------------------------------------------
 
@@ -52,39 +85,39 @@ can execution continue.
 Modern wallet systems and autonomous applications rely on multiple
 external signals:
 
-• identity proofs\
-• oracle intelligence\
-• AI security analysis\
-• governance proposals\
-• runtime policies\
-• quantum-aware authority proofs
+- identity proofs\
+- oracle intelligence\
+- AI security analysis\
+- governance proposals\
+- runtime policies\
+- quantum-aware authority proofs
 
-Most systems **trust these signals blindly**.
+External inputs require explicit verification against local policy.
 
 AdamantineOS exists to enforce **deterministic trust verification**.
 
 Instead of trusting external inputs, AdamantineOS:
 
-• verifies identity using **Q-ID cryptographic proofs**\
-• validates oracle intelligence from **Adaptive Core**\
-• evaluates security evidence from **Shield v3 layers**\
-• enforces deterministic **fail-closed decision rules**\
-• verifies governance proposals through **artifact hashing and receipt
+- verifies identity using **Q-ID cryptographic proofs**\
+- validates oracle intelligence from **Adaptive Core**\
+- evaluates security evidence through the **Shield Orchestrator boundary**\
+- enforces deterministic **fail-closed decision rules**\
+- verifies governance proposals through **artifact hashing and receipt
 validation**\
-• enforces **WSQK v2 quantum-aware authority** through TVA and Q-ID posture binding
+- enforces **WSQK v2 quantum-aware authority** through TVA and Q-ID posture binding
 
 Execution is allowed **only when every layer passes verification**.
 
-If any layer fails → execution is deterministically denied.
+If any layer fails -> execution is deterministically denied.
 
 AdamantineOS therefore acts as a **trust firewall for wallet
 execution**.
 
 ------------------------------------------------------------------------
 
-## v3.0.0 --- Connected Evidence Architecture Release
+## v3.0.0 --- Historical Connected Evidence Architecture Release
 
-**Status:** Release-stamped, CI green, and ready for final tag review after final ZIP inspection\
+**Status:** Historical release record; not current Shield v4 evidence or new tag permission\
 **Type:** Major release boundary\
 **Tests:** 925 passed\
 **Coverage:** 100.00%\
@@ -135,7 +168,7 @@ This release upgrades WSQK inside AdamantineOS into a quantum-aware authority la
 5.  Tamperproof Regression Locks
     -   hash tampering, context tampering, family drift, downgrade attempts,
         and Q-ID posture tamper are covered by tests
-    -   WSQK v2 proof pack maps contracts → invariants → implementation → tests → CI proof
+    -   WSQK v2 proof pack maps contracts -> invariants -> implementation -> tests -> CI proof
 
 Key invariant:
 
@@ -180,7 +213,7 @@ handling requires a new versioned compatibility lock.
 
 ------------------------------------------------------------------------
 
-# 🧱 Connected Evidence Architecture
+# Historical v3.0.0 Connected Evidence Architecture
 
 ```mermaid
 flowchart LR
@@ -258,14 +291,14 @@ flowchart LR
 
 ------------------------------------------------------------------------
 
-# 📚 Governance Documentation
+# Governance Documentation
 
 AdamantineOS v2.1.0 introduces the first deterministic governance
 compatibility path with **Adaptive Core v3**.
 
 The governance architecture and artifact contracts are documented here:
 
--   [Adaptive Core → Adamantine Governance
+-   [Adaptive Core -> Adamantine Governance
     Flow](docs/ADAPTIVE_CORE_GOVERNANCE_FLOW.md)\
 -   [Governance Artifact Examples (Real
     Artifacts)](docs/GOVERNANCE_ARTIFACT_EXAMPLES.md)\
@@ -277,18 +310,18 @@ The governance architecture and artifact contracts are documented here:
 Governance pipeline:
 
 Adaptive Core\
-→ generates `upgrade_proposal_v3`
+-> generates `upgrade_proposal_v3`
 
 AdamantineOS\
-→ validates proposal artifacts\
-→ verifies deterministic `proposal_hash` invariants\
-→ evaluates governance policy\
-→ emits `ac_review_receipt_v1`\
-→ produces deterministic allow / deny decision.
+-> validates proposal artifacts\
+-> verifies deterministic `proposal_hash` invariants\
+-> evaluates governance policy\
+-> emits `ac_review_receipt_v1`\
+-> produces deterministic allow / deny decision.
 
 ------------------------------------------------------------------------
 
-# 🛡️ WSQK v2 Quantum-Aware Authority
+# WSQK v2 Quantum-Aware Authority
 
 WSQK v2 binds wallet authority to explicit quantum-security posture.
 
@@ -302,30 +335,30 @@ Documented proof path:
 WSQK v2 is enforced through:
 
 WSQK v2 authority proof\
-→ Q-ID classical/PQC posture binding\
-→ Truth Vector Authority (TVA) enforcement\
-→ Orchestrator/runtime propagation\
-→ deterministic allow / deny decision.
+-> Q-ID classical/PQC posture binding\
+-> Truth Vector Authority (TVA) enforcement\
+-> Orchestrator/runtime propagation\
+-> deterministic allow / deny decision.
 
 ------------------------------------------------------------------------
 
-# 🔐 Protection Modes
+# Protection Modes
 
 Every execution response includes a deterministic security posture.
 
-### 🟢 `legacy`
+### `legacy`
 
 -   Q-ID missing or invalid
 -   Protected execution not requested
 -   Baseline evaluation only
 
-### 🟡 `minimal`
+### `minimal`
 
 -   Q-ID valid
 -   Shield or Oracle incomplete
 -   Reduced security guarantees
 
-### 🔵 `full`
+### `full`
 
 -   Q-ID valid
 -   Shield v3 valid
@@ -336,7 +369,7 @@ Protection mode semantics are regression locked in CI.
 
 ------------------------------------------------------------------------
 
-# 🔐 Q-ID Cryptographic Enforcement (Runtime-Verified)
+# Q-ID Cryptographic Enforcement (Runtime-Verified)
 
 AdamantineOS v2 integrates DigiByte Q-ID with explicit runtime
 enforcement.
@@ -351,11 +384,11 @@ Coverage remains 100%.
 
 ------------------------------------------------------------------------
 
-# 🔒 Core Invariants
+# Core Invariants
 
 Adamantine enforces:
 
--   Fail‑closed evaluation
+-   Fail-closed evaluation
 -   Canonical Shield ordering
 -   No duplicate layers
 -   Strict version discipline
@@ -375,7 +408,7 @@ If any invariant weakens, tests fail.
 
 ------------------------------------------------------------------------
 
-# 📦 Scope
+# Scope
 
 ### Included
 
@@ -389,7 +422,7 @@ If any invariant weakens, tests fail.
 -   Proposal review receipt boundary
 -   Q-ID adapter
 -   Truth Vector Authority (TVA) boundary enforcement
--   Deterministic proof packs (v1.2.0 → v2.2.0)
+-   Deterministic proof packs (v1.2.0 -> v2.2.0)
 -   Compatibility vectors for AC v3 proposal review
 -   WSQK v2 quantum-aware proof pack
 
@@ -404,7 +437,7 @@ Adamantine is a **decision engine**, not a wallet.
 
 ------------------------------------------------------------------------
 
-# 🧪 Determinism & Testing
+# Determinism & Testing
 
 -   100% coverage enforced
 -   Fixture hashes locked
@@ -419,8 +452,10 @@ Security changes require test changes.
 
 ------------------------------------------------------------------------
 
-# 🧭 Version History
+# Version History
 
+-   Unreleased Shield v4 verifier candidate - V4.10-F proof-only, independent no-bump decision
+-   v3.0.0 --- Historical Connected Evidence Architecture Release
 -   v2.2.0 --- WSQK v2 Quantum-Aware Upgrade
 -   v2.1.0 --- AC v3 Governance Compatibility Lock
 -   v2.0.1 --- 100% Coverage Gate + Integrity Lock
@@ -434,7 +469,7 @@ Security changes require test changes.
 ------------------------------------------------------------------------
 
 **AdamantineOS**\
-Deterministic. Fail‑Closed. Quantum‑Aware. Governance‑Compatible.
+Deterministic. Fail-Closed. Quantum-Aware. Governance-Compatible.
 
 ------------------------------------------------------------------------
 
