@@ -1,7 +1,7 @@
 # AdamantineOS Shield v4 Threat Model
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.10-C performance and denial-of-service envelope lock
+Status: Shield v4 V4.10-F final verifier candidate proof lock
 Scope: AdamantineOS-side Shield v4 receipt verification and final-policy boundary
 
 ## 1. Security objective
@@ -46,6 +46,16 @@ state and never grants final approval, signing, execution, or broadcast power.
 ### 3.3 Evidence boundary
 
 Even after verification, Shield v4 remains evidence. It cannot produce final approval.
+
+The compatibility default remains `shield_v4_required=False`. A trusted
+caller must explicitly select `shield_v4_required=True`; F does not enable
+it automatically in the v2 runtime host. Direct verifier/final-engine tests
+are not evidence of deployed wallet integration. Wallets consume only the
+AdamantineOS final outcome, not an upstream receipt's ALLOW or handoff hint.
+
+Deployment-owned trust anchors, replay persistence, audit-sink durability, and
+raw transport parsing limits remain prerequisites, not properties supplied by
+an in-memory test fixture or acknowledgement.
 
 ## 4. Attacker goals
 
@@ -187,9 +197,14 @@ boundary. V4.10-C adds bounded work, exact callback waves, and the pinned
 performance/DoS regression job without changing verification authority, replay
 state, final policy, runtime execution, signing, or broadcast behavior.
 
-This remains a controlled build gate rather than a release or tag claim. Later
-V4.10 gates, final proof-pack closure, required workflow evidence with
-`skipped == 0`, and explicit release authorization remain separate.
+V4.10-F consolidates the [final verifier proof pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+and [release-status record](ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md).
+It deliberately retains package version 3.0.0 without relabeling historical
+v3 evidence. The native gate requires all six exact nodes with zero skips,
+failures, or errors; its classical callbacks remain TEST-ONLY. This is not
+production Ed25519, HSM, FIPS-validated deployment, or final FIPS 206 proof.
+Post-commit CI, fresh-ZIP verification, and explicit release authorization
+remain separate. Floating native dependencies do not prove reproducible builds.
 
 ## V4.8H-E live-Falcon and summary-profile threat lock
 
