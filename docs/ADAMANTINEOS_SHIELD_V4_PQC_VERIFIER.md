@@ -1,7 +1,7 @@
 # AdamantineOS Shield v4 PQC Verifier
 
 Author attribution: DarekDGB
-Status: Shield v4 V4.9-L independent external-contract consumer proof lock
+Status: Shield v4 V4.10-F final verifier candidate proof lock
 Scope: AdamantineOS-side Shield v4 verifier and external-contract consumer boundary, not a Shield v4 release claim
 
 ## 1. Boundary statement
@@ -95,7 +95,10 @@ AdamantineOS validates the received sequence and never sorts, repairs, or otherw
 
 Before any trust-registry key lookup or cryptographic verifier call, AdamantineOS completes a receipt-wide preflight over every embedded component bundle and the top-level Orchestrator bundle. The preflight validates bundle and entry shape, supported algorithms and profiles, exact order, required presence, duplicate algorithms, duplicate key identities, signed payload hashes, domain tags, key identifiers, and key versions. The private bundle verifier repeats the same preflight before its own trust or cryptographic work, so direct internal use cannot bypass the boundary.
 
-Preflight retains a new outer snapshot for each entry mapping. It does not promise recursive deep-copying of nested values. This preserves the existing contract while preventing caller mutation of the original entry mappings from changing the prepared cryptographic pass.
+V4.9-J introduced outer entry snapshots. V4.10-C additionally isolates the whole
+receipt through a bounded exact-JSON snapshot before canonicalization or
+callbacks; arbitrary mappings, cycles, and over-limit input are rejected.
+This is bounded JSON isolation, not general-purpose copying of arbitrary objects.
 
 The strict required `classical-ed25519` plus `ml-dsa` AND policy is unchanged. The optional entry remains last and carries draft FN-DSA/Falcon-1024 evidence only. Optional-present-invalid remains fatal, and optional evidence cannot rescue either required path.
 
@@ -188,21 +191,34 @@ When this mode is active, the final policy engine must reject:
 
 Default compatibility mode remains `shield_v4_required=False` until a later controlled integration step enables v4-required mode for the full runtime path.
 
+V4.10-F does not change that default or enable it automatically in the v2
+runtime host. The direct verifier-to-final-policy proof is not a deployed
+wallet or SDK integration claim. Final policy evaluates Shield, WSQK v2,
+Q-ID, Adaptive Core, AI Gateway, replay, wallet policy, and human gates in
+that order before final approval.
+
 ## 11. Verification order
 
 The verifier must process checks cheap to expensive:
 
-1. full receipt-contract validation: mapping and schema shape, versions, canonicalization profile, context, authority boundary, receipt and signed payload hashes, and every embedded and top-level bundle's shape, profile, hash, domain, canonical order, required presence, and duplicate-algorithm checks
-2. expected request-id comparison
-3. explicit signature-backend presence and injected replay-denylist checks
-4. independent receipt-wide verifier preflight over snapshot copies, including duplicate-key identities, for every embedded and top-level signature bundle
-5. trust-registry shape and version checks
-6. freshness-window checks
-7. key role/id/version/algorithm and validity-window binding plus standard-profile-bound component signature verification
-8. embedded component-summary cross-check
-9. standard-profile-bound Orchestrator signature verification
-10. verified evidence result; the caller may update replay state only after success
-11. final policy engine gates
+1. bounded exact-JSON snapshot and receipt/component/bundle preflight;
+2. bounded replay/denylist inputs, registry/freshness validation, and every
+   key's resolution, role, status, and validity-window checks;
+3. exact canonical receipt/bundle byte limits and hash-integrity checks;
+4. all six classical callbacks, then all six ML-DSA callbacks, then optional
+   FN-DSA callbacks in canonical bundle order;
+5. independent signature summaries and embedded-summary consistency;
+6. for the audited wrapper, exact atomic durable acknowledgement before return;
+7. evidence result, never final approval; replay-state mutation remains caller-owned;
+8. independent AdamantineOS final-policy gates.
+
+The normative work limits and cheap-to-expensive sequencing are in
+[performance/DoS v1](CONTRACTS/shield_v4_performance_dos_envelope_v1.md).
+The release-facing audited API is
+`verify_shield_v4_orchestrator_receipt_with_audit`; the ordinary verifier
+remains available without a mandatory audit sink. Audit privacy, count/byte
+limits, and ACK semantics are in
+[audit v1](CONTRACTS/shield_v4_verification_audit_v1.md).
 
 Malformed input must be rejected before expensive signature work.
 
@@ -217,6 +233,9 @@ The current AdamantineOS Shield v4 tests are:
 - `tests/integrations/test_shield_v49_external_verification_contract.py`
 - `tests/policy/test_final_policy_engine_shield_v4_required.py`
 - `tests/test_adamantineos_shield_v4_docs_lock.py`
+- `tests/integrations/test_shield_v410b_verification_audit.py`
+- `tests/integrations/test_shield_v410c_performance_dos_envelope.py`
+- `tests/test_v410f_final_verifier_proof_pack.py`
 
 These tests lock contract validation, canonical signature-bundle order, whole-receipt and direct-bundle preflight, verifier behavior, trust-registry checks, downgrade rejection, and final-policy v4-required behavior.
 
@@ -226,4 +245,8 @@ This document does not claim Shield v4 is released.
 
 Current status: AdamantineOS has a Shield v4 verifier boundary, fixtures, fail-closed trust-registry checks, a v4-required final-policy gate, optional draft FN-DSA/Falcon-1024 verify-only handling, a V4.9-J canonical-order and receipt-wide preflight implementation, and a V4.9-L independent external-contract consumer proof.
 
-Later controlled integration and release phases remain. Final public release claims require the V4.10 proof pack, release-status documentation, and the final release gate.
+V4.10-F consolidates the [final verifier proof pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+and [independent release status](ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md).
+Package version deliberately remains 3.0.0 for this proof-only step. The
+current v4 candidate is not the historical v3.0.0 release. Post-commit standard,
+six-node native, performance, fresh-ZIP, and final release gates remain separate.
