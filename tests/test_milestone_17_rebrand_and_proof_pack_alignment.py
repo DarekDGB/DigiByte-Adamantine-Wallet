@@ -13,7 +13,7 @@ def test_milestone_17_public_name_and_package_boundary_are_locked() -> None:
     changelog = read("CHANGELOG.md")
     pyproject = read("pyproject.toml")
 
-    assert "# 🔷 DigiByte AdamantineOS" in readme
+    assert "# DigiByte AdamantineOS" in readme
     assert "DigiByte AdamantineOS is a **deterministic security decision engine" in readme
     assert "Security in AdamantineOS is based on" in security
     assert "Milestone 17: Rebrand, Proof Pack, and Docs Alignment" in changelog
