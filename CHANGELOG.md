@@ -1,16 +1,40 @@
-# AdamantineOS — Changelog
+# AdamantineOS - Changelog
 
-License: MIT License  
-Author: DarekDGB  
-Repository: DigiByte AdamantineOS  
+License: MIT License
+Author: DarekDGB
+Repository: DigiByte AdamantineOS
 Scope: Foundation Releases and Contract History
+
+## Unreleased - V4.10-F Shield v4 final verifier proof pack
+
+Author attribution: DarekDGB
+
+- Consolidated the shared external KAT, independent signature verification,
+  strict policy and optional FN-DSA behavior, trust/replay/context negatives,
+  canonical order, durable audit, and bounded-work proof references.
+- Added the final verifier proof pack, independent release-status record, and
+  executable proof/documentation locks. The new composed test routes the exact
+  shared KAT through audited verification and the final policy engine.
+- Aligned active README, security guidance, verifier/threat/test/backend docs,
+  and proof/documentation indexes while preserving historical v3 evidence.
+- Deliberate no-bump: package remains 3.0.0. F changes no runtime, workflow,
+  dependency, fixture, schema, or protocol identity. The next independent
+  AdamantineOS release version is not assigned by F; no tag is authorized.
+- Kept the existing compatibility default shield_v4_required=False explicit;
+  no automatic v4 runtime-host enablement or deployed wallet/SDK claim.
+- Made the copy set ASCII-safe and aligned the existing README-title assertion
+  with its plain-text heading. All security and version assertions remain.
+
+The current candidate is not the historical v3.0.0 tag. That historical record
+below retains its original test counts and milestone decisions; those old
+approvals do not authorize a new tag or retagging current main.
 
 ------------------------------------------------------------------------
 
-## v3.0.0 — Final Policy Runtime Authority Release
+## v3.0.0 - Final Policy Runtime Authority Release
 
-**Status:** Release-stamped and approved for tag after final fresh-ZIP verification  
-**Type:** Major release boundary, final-policy runtime authority, Shield integration closure, and evidence lock  
+**Status:** Historical v3.0.0 release record; not a current tag authorization
+**Type:** Major release boundary, final-policy runtime authority, Shield integration closure, and evidence lock
 **Compatibility:** No package distribution rename and no Python import-path change
 
 DigiByte AdamantineOS `v3.0.0` is the first major release boundary after approximately seven months of design, integration, documentation, proof-pack building, fail-closed hardening, and authorized AI red-team review.
@@ -112,9 +136,9 @@ Package version: 3.0.0
 
 ------------------------------------------------------------------------
 
-## Unreleased — Milestone 18: Authorized Red-Team Review, Runtime Authority Wiring, and Fail-Closed Hardening
+## Unreleased - Milestone 18: Authorized Red-Team Review, Runtime Authority Wiring, and Fail-Closed Hardening
 
-**Status:** Complete — fourth red-team passed; N8/N7 no-debt closure verified
+**Status:** Complete - fourth red-team passed; N8/N7 no-debt closure verified
 **Type:** Runtime authority wiring, red-team fixes, and fail-closed hardening
 **Compatibility:** No package rename, no import-path change, no version bump, and no AdamantineOS tag
 
@@ -159,8 +183,8 @@ Claude AI final closure verdict: `PASS - Milestone 18 can be closed`. No known r
 
 ## Milestone 17: Rebrand, Proof Pack, and Docs Alignment
 
-**Status:** Complete  
-**Type:** Documentation, release evidence, and public identity alignment  
+**Status:** Complete
+**Type:** Documentation, release evidence, and public identity alignment
 **Compatibility:** No package rename, no import-path change, no version bump, and no AdamantineOS tag
 
 Milestone 17 performs a controlled public identity alignment from **DigiByte Adamantine Wallet OS** to **DigiByte AdamantineOS** and adds the Level 4 integration proof-pack structure before authorized red-team review.
@@ -183,11 +207,11 @@ Locked rules:
 - Added regression tests proving a live EQC deny reaches the final policy engine and that v1 execution is blocked when final policy denies.
 - AdamantineOS remained v2.2.0 and untagged; this pass was superseded by fourth-review Option 2 closure.
 
-## v2.2.0 — WSQK v2 Quantum-Aware Upgrade
+## v2.2.0 - WSQK v2 Quantum-Aware Upgrade
 
-**Status:** Locked  
-**Type:** Quantum-aware authority upgrade  
-**Compatibility:** Additive — legacy/v1 paths remain compatible unless WSQK v2 is explicitly required
+**Status:** Locked
+**Type:** Quantum-aware authority upgrade
+**Compatibility:** Additive - legacy/v1 paths remain compatible unless WSQK v2 is explicitly required
 
 This release upgrades WSQK inside AdamantineOS into a quantum-aware authority layer. WSQK v2 is now contract-defined, deterministically issued, reason-ID mapped, Truth Vector Authority (TVA) enforced, Q-ID posture bound, orchestrator propagated, and regression locked.
 
@@ -220,18 +244,18 @@ This release upgrades WSQK inside AdamantineOS into a quantum-aware authority la
 
 6. Tamperproof Regression Locks and Proof Pack
    - Negative-first tests cover hash tampering, context tampering, family drift, downgrade attempts, and Q-ID posture tamper
-   - WSQK v2 proof pack maps contract → invariants → implementation → tests → CI proof
+   - WSQK v2 proof pack maps contract -> invariants -> implementation -> tests -> CI proof
    - 100% coverage gate remains enforced
 
 Rule: Any semantic change to WSQK v2 authority, proof binding, Q-ID posture binding, or TVA/orchestrator enforcement requires a new versioned compatibility lock.
 
 ------------------------------------------------------------------------
 
-## v2.1.0 — AC v3 Governance Compatibility Lock
+## v2.1.0 - AC v3 Governance Compatibility Lock
 
-**Status:** Locked  
-**Type:** Compatibility lock (Adaptive Core v3 governance path sealed)  
-**Compatibility:** Additive — no production behavior changes
+**Status:** Locked
+**Type:** Compatibility lock (Adaptive Core v3 governance path sealed)
+**Compatibility:** Additive - no production behavior changes
 
 This release locks AdamantineOS compatibility with Adaptive Core v3 `upgrade_proposal_v3` artifacts and seals the first cross-repository governance evaluation path.
 
@@ -261,10 +285,10 @@ Rule: Any semantic change to Adaptive Core v3 governance artifact handling requi
 
 ------------------------------------------------------------------------
 
-## v2.0.1 — Sealed Foundation (100% CI Enforcement)
+## v2.0.1 - Sealed Foundation (100% CI Enforcement)
 
-**Status:** Locked  
-**Type:** Integrity lock (coverage enforcement hardening)  
+**Status:** Locked
+**Type:** Integrity lock (coverage enforcement hardening)
 **Compatibility:** No functional or protocol changes
 
 This release seals the AdamantineOS v2.0.x foundation by enforcing a strict 100% coverage regression gate in CI.
@@ -290,11 +314,11 @@ Rule: Any uncovered execution path will fail CI.
 
 ------------------------------------------------------------------------
 
-## v2.0.0 — Runtime Host v2 + Execution Boundary Seal
+## v2.0.0 - Runtime Host v2 + Execution Boundary Seal
 
-**Status:** Locked  
-**Type:** Major release (runtime host + execution_response_v2 seal)  
-**Compatibility:** Breaking — execution response upgraded to v2 contract
+**Status:** Locked
+**Type:** Major release (runtime host + execution_response_v2 seal)
+**Compatibility:** Breaking - execution response upgraded to v2 contract
 
 This release seals the mobile runtime host (v2) and locks deterministic execution behavior end-to-end.
 
@@ -339,11 +363,11 @@ Rule: Any change to execution_response_v2 shape requires a new major version.
 
 ------------------------------------------------------------------------
 
-## v1.5.0 — Mobile Contract v2 + Conformance Freeze
+## v1.5.0 - Mobile Contract v2 + Conformance Freeze
 
-**Status:** Locked  
-**Type:** Contract extension (mobile v2 freeze + deterministic conformance pack)  
-**Compatibility:** Additive — v1.4.x contracts remain valid unless mobile v2 is explicitly used
+**Status:** Locked
+**Type:** Contract extension (mobile v2 freeze + deterministic conformance pack)
+**Compatibility:** Additive - v1.4.x contracts remain valid unless mobile v2 is explicitly used
 
 This release freezes the Mobile Integration Contract v2 and seals the OS Proof Pack for deterministic CI enforcement.
 
@@ -384,11 +408,11 @@ Rule: Any change to mobile request/response shape requires a major version bump.
 
 ------------------------------------------------------------------------
 
-## v1.4.0 — Q-ID Linkage Hardened (Replay Proof Gate)
+## v1.4.0 - Q-ID Linkage Hardened (Replay Proof Gate)
 
-**Status:** Locked  
-**Type:** Contract hardening (Q-ID binding + replay-proof validation)  
-**Compatibility:** Additive — legacy/v1.3 proof packs remain valid unless policy enables the latch
+**Status:** Locked
+**Type:** Contract hardening (Q-ID binding + replay-proof validation)
+**Compatibility:** Additive - legacy/v1.3 proof packs remain valid unless policy enables the latch
 
 This release locks:
 
@@ -399,26 +423,26 @@ This release locks:
 
 ------------------------------------------------------------------------
 
-## v1.3.0 — Shield Interfaces Frozen + Posture Locked
+## v1.3.0 - Shield Interfaces Frozen + Posture Locked
 
-**Status:** Locked  
-**Type:** Contract hardening (Shield v3 + posture + regression locks)  
-**Compatibility:** Additive only — response adds `protection_mode` and new strict fixtures
+**Status:** Locked
+**Type:** Contract hardening (Shield v3 + posture + regression locks)
+**Compatibility:** Additive only - response adds `protection_mode` and new strict fixtures
 
 This release freezes the Shield v3 external evidence interface and locks deterministic, auditable posture outputs.
 
-1. Shield v3 Strict Interface Freeze  
-2. Protection Mode Output (auditable)  
-3. No Silent Downgrade (policy posture latches)  
+1. Shield v3 Strict Interface Freeze
+2. Protection Mode Output (auditable)
+3. No Silent Downgrade (policy posture latches)
 4. Regression Locks
 
 ------------------------------------------------------------------------
 
-## v1.2.0 — Integration Harness Sealed
+## v1.2.0 - Integration Harness Sealed
 
-**Status:** Locked  
-**Type:** Deterministic integration freeze (execution proof pack)  
-**Compatibility:** Additive only — contracts unchanged
+**Status:** Locked
+**Type:** Deterministic integration freeze (execution proof pack)
+**Compatibility:** Additive only - contracts unchanged
 
 This release seals the deterministic integration harness for AdamantineOS.
 
@@ -428,10 +452,10 @@ As of v1.2.0, the execution integration layer is cryptographically reproducible 
 
 ------------------------------------------------------------------------
 
-## v1.0.0 — Foundation Sealed
+## v1.0.0 - Foundation Sealed
 
-**Status:** Locked  
-**Type:** Foundation seal (contracts + deterministic reasoning + boundaries)  
+**Status:** Locked
+**Type:** Foundation seal (contracts + deterministic reasoning + boundaries)
 **Compatibility:** Additive changes only beyond this point
 
 This release seals the AdamantineOS foundation.
