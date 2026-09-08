@@ -8,6 +8,11 @@ This document locks the AdamantineOS real-crypto verification boundary for Shiel
 It connects AdamantineOS Shield v4 receipt verification to deployment-controlled real
 signature backends without making AdamantineOS a transaction signer.
 
+V4.10-F records this as an unreleased verifier candidate with an independent
+no-bump decision: package 3.0.0 remains unchanged. See the
+[final verifier proof pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+and [release status](ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md).
+
 ## Boundary lock
 
 AdamantineOS remains the final execution boundary.
@@ -75,18 +80,10 @@ Default package CI proves AdamantineOS real-backend verifier interface behavior,
 fail-closed parsing, exception wrapping, and Shield v4 policy integration with deterministic
 backends. That default CI does not claim to execute live liboqs ML-DSA.
 
-Live liboqs ML-DSA verification is optional and gated so AdamantineOS does not gain a hard
-OQS/liboqs dependency. The dedicated job must set `SHIELD_V4_REAL_OQS=1`, install
-`oqs`/liboqs, write a JUnit report, disable default coverage addopts for the focused gated job, and run the not-skipped guard:
-
-```text
-SHIELD_V4_REAL_OQS=1 PYTHONPATH=src python -m pytest \
-  tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py \
-  tests/integrations/test_shield_v48g_real_oqs_full_chain.py \
-  --override-ini addopts='' \
-  --junitxml=.artifacts/v48g-real-oqs.xml
-python scripts/assert_real_oqs_junit_not_skipped.py .artifacts/v48g-real-oqs.xml
-```
+Live liboqs verification is optional at installation and explicitly required
+by the dedicated release-proof job. AdamantineOS gains no hard native
+dependency. The current six-node command and both enable flags are below;
+the historical ML-DSA-only command is not the current release gate.
 
 The guard fails if the real-OQS job collects zero tests, skips any testcase, or records any
 failure/error.
@@ -124,15 +121,32 @@ AdamantineOS remains verify-only. The Falcon backend verifies Shield evidence; i
 V4.8H-E extends the dedicated PQC workflow so it sets both `SHIELD_V4_REAL_OQS=1` and `SHIELD_V4_REAL_OQS_FALCON=1`, then runs the ML-DSA proof, the ML-DSA full-chain proof, and the Falcon-1024 full-chain proof in the same guarded JUnit report:
 
 ```text
-PYTHONPATH=src python -m pytest --override-ini addopts='' \
+SHIELD_V4_REAL_OQS=1 SHIELD_V4_REAL_OQS_FALCON=1 PYTHONPATH=src python -m pytest --override-ini addopts='' \
   tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py \
   tests/integrations/test_shield_v48g_real_oqs_full_chain.py \
   tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py \
   -q --junitxml=shield-v4-real-oqs-results.xml
-python scripts/assert_real_oqs_junit_not_skipped.py shield-v4-real-oqs-results.xml
+python scripts/assert_real_oqs_junit_not_skipped.py shield-v4-real-oqs-results.xml \
+  --min-tests 6 \
+  --require-testcase "tests/integrations/test_shield_v48g_real_oqs_mldsa_backend.py::test_v48g_real_oqs_mldsa65_adamantineos_verify_only_backend_positive_and_negatives" \
+  --require-testcase "tests/integrations/test_shield_v48g_real_oqs_full_chain.py::test_v48g_r4_real_oqs_mldsa_full_chain_verifies_through_adamantineos" \
+  --require-testcase "tests/integrations/test_shield_v48g_real_oqs_full_chain.py::test_v410b_real_oqs_mldsa_full_chain_requires_durable_audit_ack" \
+  --require-testcase "tests/integrations/test_shield_v48g_real_oqs_full_chain.py::test_v48g_r4_real_oqs_mldsa_full_chain_rejects_tampered_orchestrator_mldsa" \
+  --require-testcase "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py::test_v48h_e_real_oqs_mldsa_and_falcon_full_chain_verifies_through_adamantineos" \
+  --require-testcase "tests/integrations/test_shield_v48h_e_real_oqs_falcon_full_chain.py::test_v48h_e_real_oqs_full_chain_rejects_tampered_falcon_signature"
 ```
 
 A public live Falcon-1024 AdamantineOS claim requires that dedicated workflow to finish green with `skipped == 0`, `failures == 0`, and `errors == 0` for the guarded report.
+
+V4.10-B adds the durable-ACK node to the earlier five-node set. The current
+gate is exactly six nodes, with `tests=6 skipped=0 failures=0 errors=0 required=6`.
+The native positives verify live ML-DSA-65 and draft Falcon-1024 across the
+five components and Orchestrator. Classical callbacks remain TEST-ONLY.
+The embedded-Falcon tamper node rejects receipt-integrity drift before native
+signature verification; it is not a native Falcon rejection measurement.
+Production Ed25519, HSM, key custody, side-channel safety, and FIPS-validated
+deployment are not proven by this hybrid harness. Upstream native dependencies
+remain floating, so this is not a reproducible-build claim.
 
 ## Frozen real-signature input
 
@@ -156,7 +170,9 @@ Rules:
 - `signed_payload_hash` must be lowercase SHA-256 hex;
 - `domain_tag` must be one of the frozen Shield v4 signing domains;
 - `standard_profile` is authenticated in the message bytes so FN-DSA/Falcon-1024 cannot be flipped to another profile after signing;
-- `algorithm`, `standard_profile`, `key_id`, and `key_version` must match the verifier contract and trusted registry entry.
+- `algorithm`, `key_id`, and `key_version` must match the verifier contract and
+  trusted registry entry; `standard_profile` is authenticated in each signature
+  entry and checked against the verifier allow-list, not a registry-entry field.
 
 ## V4.8H-D FN-DSA verify-only handling
 
@@ -199,6 +215,20 @@ Rejected examples include:
 
 There is no fallback from real verification mode to TEST-ONLY deterministic HMAC
 verification.
+
+## Durable audit and performance scope
+
+Release integrations requiring durable audit call
+`verify_shield_v4_orchestrator_receipt_with_audit` with an injected atomic
+append-only sink; an exact durable acknowledgement is required before return.
+The ordinary verifier remains separate. Both paths leave replay-state mutation
+to the trusted caller. In-memory test acknowledgements do not prove disk durability.
+
+The [performance contract](CONTRACTS/shield_v4_performance_dos_envelope_v1.md)
+bounds the parsed snapshot and global callback waves. Its pinned benchmark uses
+deterministic callbacks and excludes native latency. F does not add a signing
+method or private-key resolver, change the compatibility default
+`shield_v4_required=False`, or wire v4 automatically into the runtime host.
 
 ## Third-party attribution
 
