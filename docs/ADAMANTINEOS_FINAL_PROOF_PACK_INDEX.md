@@ -1,23 +1,43 @@
 # DigiByte AdamantineOS Final Proof Pack Index
 
-Author attribution: **DarekDGB**  
-Repository: `DigiByte-AdamantineOS`  
-Public project name: **DigiByte AdamantineOS**  
-Current package version: `v3.0.0`  
-Tag status: **approved v3.0.0 after release-stamp copy-back, CI green, and final fresh-ZIP verification**  
-Milestone: **19 final release gate**
+Author attribution: **DarekDGB**
+Repository: `DigiByte-AdamantineOS`
+Public project name: **DigiByte AdamantineOS**
+Current package version: `v3.0.0`
+Current candidate: **Unreleased Shield v4 verifier; V4.10-F proof-only**
+Tag status: **No new tag or retagging authorized by this index**
+Historical milestone: **19 v3.0.0 release gate**
 
 ---
 
 ## 1. Purpose
 
-This index maps the final AdamantineOS release-gate evidence set for the approved `v3.0.0` release tag.
+This index separates current Shield v4 candidate evidence from the historical
+Milestone 19 `v3.0.0` release-gate evidence set.
 
-It is a proof index for the final gate and must be verified again after copy-back before the tag command is run.
+F deliberately keeps package 3.0.0 without choosing a new release number.
+AdamantineOS does not inherit the six Shield repositories' v4.0.0 tag.
+Historical release documents and the old build ledger remain unchanged.
+
+### Current Shield v4 candidate evidence
+
+- [Final verifier proof pack](PROOF_PACKS/ADAMANTINEOS_SHIELD_V4_FINAL_VERIFIER_PROOF_PACK.md)
+- [Independent version and release status](ADAMANTINEOS_SHIELD_V4_RELEASE_STATUS.md)
+- [Verifier contract](ADAMANTINEOS_SHIELD_V4_PQC_VERIFIER.md)
+- [Threat model](ADAMANTINEOS_SHIELD_V4_THREAT_MODEL.md)
+- [Test matrix](ADAMANTINEOS_SHIELD_V4_TEST_MATRIX.md)
+- [Real-backend proof](ADAMANTINEOS_SHIELD_V4_REAL_CRYPTO_BACKEND.md)
+- [Verification audit](CONTRACTS/shield_v4_verification_audit_v1.md)
+- [Performance/DoS envelope](CONTRACTS/shield_v4_performance_dos_envelope_v1.md)
+
+The current candidate requires full standard CI and 100% coverage, the exact
+six-node native guard with zero skips/errors/failures, the pinned performance
+job, and a fresh post-F ZIP on the complete candidate commit. Preparation
+results are recorded separately in the controlled roadmap handoff.
 
 ---
 
-## 2. Primary evidence set
+## 2. Historical v3.0.0 primary evidence set
 
 | Evidence area | Repository artifact |
 | --- | --- |
@@ -39,7 +59,7 @@ It is a proof index for the final gate and must be verified again after copy-bac
 
 ---
 
-## 3. Runtime authority evidence
+## 3. Historical runtime authority evidence
 
 Milestone 19 relies on the following runtime authority evidence being present and regression-locked:
 
@@ -58,9 +78,9 @@ Milestone 19 relies on the following runtime authority evidence being present an
 
 ---
 
-## 4. Test evidence
+## 4. Historical test evidence
 
-Latest inspected source evidence before release-stamp package copy-back:
+Recorded Milestone 19 evidence before the historical release-stamp copy-back:
 
 ```text
 PYTHONPATH=src python -m pytest -q
@@ -69,13 +89,13 @@ PYTHONPATH=src python -m pytest -q
 TOTAL 4097 statements, 0 missed
 ```
 
-This proof was repeated after maintainer copy-back and fresh ZIP inspection. It must remain true after this release-stamp package is copied back before the tag command is run.
+This historical proof is not the current Shield v4 test count or coverage scope.
 
 ---
 
-## 5. Release gate evidence rule
+## 5. Historical release gate evidence rule
 
-The final proof pack is valid only if:
+The historical v3.0.0 proof pack recorded these conditions:
 
 ```text
 [x] Milestone 19 docs are copied back
@@ -87,4 +107,6 @@ The final proof pack is valid only if:
 [x] Maintainer explicitly approves tag creation after final copied-repo verification
 ```
 
-AdamantineOS remains untagged until this release-stamp update is copied into the repository, CI remains green, and the final copied-repo ZIP is inspected. The approved tag is `v3.0.0`.
+Those historical approvals do not authorize any new release, creation of a
+v4.0.0 AdamantineOS tag, or movement of an existing tag. Current Shield v4
+candidate status is controlled by the release-status record above.
